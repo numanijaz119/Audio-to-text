@@ -29,7 +29,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-sm text-gray-600">Wallet Balance</p>
               <p className="text-2xl font-bold text-gray-900">
-                ₹{walletData?.wallet.balance.toFixed(2) || '0.00'}
+                ₹{walletData?.wallet.balance ? Number(walletData.wallet.balance).toFixed(2) : '0.00'}
               </p>
             </div>
             <Wallet className="w-10 h-10 text-blue-500" />
@@ -41,7 +41,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-sm text-gray-600">Demo Minutes</p>
               <p className="text-2xl font-bold text-gray-900">
-                {walletData?.wallet.demo_minutes_remaining.toFixed(2) || '0.00'}
+                {walletData?.wallet.demo_minutes_remaining ? Number(walletData.wallet.demo_minutes_remaining).toFixed(2) : '0.00'}
               </p>
             </div>
             <Clock className="w-10 h-10 text-green-500" />
@@ -53,7 +53,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-sm text-gray-600">Total Spent</p>
               <p className="text-2xl font-bold text-gray-900">
-                ₹{walletData?.wallet.total_spent.toFixed(2) || '0.00'}
+                ₹{walletData?.wallet.total_spent ? Number(walletData.wallet.total_spent).toFixed(2) : '0.00'}
               </p>
             </div>
             <TrendingUp className="w-10 h-10 text-red-500" />

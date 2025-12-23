@@ -23,6 +23,11 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class WalletSerializer(serializers.ModelSerializer):
+    balance = serializers.FloatField()
+    demo_minutes_remaining = serializers.FloatField()
+    total_spent = serializers.FloatField()
+    total_minutes_used = serializers.FloatField()
+    
     class Meta:
         model = Wallet
         fields = ['id', 'balance', 'demo_minutes_remaining', 'total_spent', 'total_minutes_used', 'created_at', 'updated_at']
@@ -30,6 +35,10 @@ class WalletSerializer(serializers.ModelSerializer):
 
 
 class TransactionSerializer(serializers.ModelSerializer):
+    amount = serializers.FloatField()
+    balance_before = serializers.FloatField()
+    balance_after = serializers.FloatField()
+    
     class Meta:
         model = Transaction
         fields = ['id', 'type', 'amount', 'balance_before', 'balance_after', 'description', 'payment_id', 'created_at']
@@ -37,6 +46,8 @@ class TransactionSerializer(serializers.ModelSerializer):
 
 
 class AudioFileSerializer(serializers.ModelSerializer):
+    duration = serializers.FloatField()
+    
     class Meta:
         model = AudioFile
         fields = ['id', 'filename', 'duration', 'size', 'format', 'uploaded_at']
@@ -45,6 +56,8 @@ class AudioFileSerializer(serializers.ModelSerializer):
 
 class TranscriptionSerializer(serializers.ModelSerializer):
     audio_filename = serializers.CharField(source='audio_file.filename', read_only=True)
+    duration = serializers.FloatField()
+    cost = serializers.FloatField()
     
     class Meta:
         model = Transcription
