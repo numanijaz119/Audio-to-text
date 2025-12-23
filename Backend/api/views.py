@@ -1,0 +1,383 @@
+from rest_framework import viewsets, status
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.http import HttpResponse
+from django.db.models import Q
+from datetime import datetime
+import csv
+import json
+
+from .models import User, Wallet, Transaction, AudioFile, Transcription
+from .serializers import (
+    UserSerializer, WalletSerializer, TransactionSerializer,
+    AudioFileSerializer, TranscriptionSerializer, TranscriptionCreateSerializer
+)
+from .services import (
+    AuthService, WalletService, AudioService,
+    TranscriptionService, PaymentService
+)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_login(request):
+    """Handle Google OAuth login"""
+    try:
+        # In production, verify the Google token here
+        email = request.data.get('email')
+        name = request.data.get('name')
+        provider_id = request.data.get('provider_id')
+        
+        if not all([email, name, provider_id]):
+            return Response(
+                {'error': 'Missing required fields'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        result = AuthService.authenticate_oauth_user('google', email, name, provider_id)
+        
+        user_data = UserSerializer(result['user']).data
+        
+        return Response({
+            'user': user_data,
+            'tokens': result['tokens'],
+            'is_new_user': result['is_new_user']
+        })
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def facebook_login(request):
+    """Handle Facebook OAuth login"""
+    try:
+        # In production, verify the Facebook token here
+        email = request.data.get('email')
+        name = request.data.get('name')
+        provider_id = request.data.get('provider_id')
+        
+        if not all([email, name, provider_id]):
+            return Response(
+                {'error': 'Missing required fields'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        result = AuthService.authenticate_oauth_user('facebook', email, name, provider_id)
+        
+        user_data = UserSerializer(result['user']).data
+        
+        return Response({
+            'user': user_data,
+            'tokens': result['tokens'],
+            'is_new_user': result['is_new_user']
+        })
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_current_user(request):
+    """Get current authenticated user"""
+    serializer = UserSerializer(request.user)
+    return Response(serializer.data)
+
+
+class WalletViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = WalletSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Wallet.objects.filter(user=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def details(self, request):
+        """Get wallet details with statistics"""
+        wallet = request.user.wallet
+        serializer = self.get_serializer(wallet)
+        stats = WalletService.get_usage_statistics(request.user)
+        
+        return Response({
+            'wallet': serializer.data,
+            'statistics': stats
+        })
+    
+    @action(detail=False, methods=['post'])
+    def create_order(self, request):
+        """Create Razorpay order for recharge"""
+        try:
+            amount = request.data.get('amount')
+            if not amount or float(amount) <= 0:
+                return Response(
+                    {'error': 'Invalid amount'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            payment_service = PaymentService()
+            order = payment_service.create_order(amount, request.user)
+            
+            return Response(order)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['post'])
+    def verify_payment(self, request):
+        """Verify payment and credit wallet"""
+        try:
+            order_id = request.data.get('order_id')
+            payment_id = request.data.get('payment_id')
+            signature = request.data.get('signature')
+            amount = request.data.get('amount')
+            
+            if not all([order_id, payment_id, signature, amount]):
+                return Response(
+                    {'error': 'Missing required fields'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            payment_service = PaymentService()
+            is_valid = payment_service.verify_payment_signature(order_id, payment_id, signature)
+            
+            if not is_valid:
+                return Response(
+                    {'error': 'Invalid payment signature'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Credit wallet
+            transaction = WalletService.process_recharge(
+                request.user,
+                amount,
+                payment_id,
+                order_id
+            )
+            
+            return Response({
+                'message': 'Payment verified and wallet credited',
+                'transaction': TransactionSerializer(transaction).data
+            })
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = TransactionSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Transaction.objects.filter(wallet__user=self.request.user)
+
+
+class AudioFileViewSet(viewsets.ModelViewSet):
+    serializer_class = AudioFileSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+    
+    def get_queryset(self):
+        return AudioFile.objects.filter(user=self.request.user)
+    
+    def create(self, request):
+        """Upload audio file"""
+        try:
+            file = request.FILES.get('file')
+            if not file:
+                return Response(
+                    {'error': 'No file provided'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            audio_file = AudioService.store_audio_file(file, request.user)
+            serializer = self.get_serializer(audio_file)
+            
+            # Calculate estimated cost
+            has_balance, estimated_cost = WalletService.check_sufficient_balance(
+                request.user,
+                float(audio_file.duration)
+            )
+            
+            return Response({
+                'audio_file': serializer.data,
+                'estimated_cost': float(estimated_cost),
+                'has_sufficient_balance': has_balance
+            }, status=status.HTTP_201_CREATED)
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def destroy(self, request, pk=None):
+        """Delete audio file"""
+        try:
+            audio_file = self.get_object()
+            AudioService.delete_audio_file(audio_file)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class TranscriptionViewSet(viewsets.ModelViewSet):
+    serializer_class = TranscriptionSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = Transcription.objects.filter(user=self.request.user)
+        
+        # Apply filters
+        language = self.request.query_params.get('language')
+        status_filter = self.request.query_params.get('status')
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        
+        if language:
+            queryset = queryset.filter(language=language)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if date_from:
+            queryset = queryset.filter(created_at__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(created_at__lte=date_to)
+        
+        return queryset
+    
+    def create(self, request):
+        """Create transcription request"""
+        try:
+            serializer = TranscriptionCreateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            
+            transcription = TranscriptionService.create_transcription(
+                serializer.validated_data['audio_file_id'],
+                serializer.validated_data['language'],
+                request.user
+            )
+            
+            # Process transcription asynchronously in production
+            # For now, process synchronously
+            try:
+                TranscriptionService.process_transcription(transcription)
+            except Exception as e:
+                # Transcription failed, but record is created
+                pass
+            
+            result_serializer = TranscriptionSerializer(transcription)
+            return Response(result_serializer.data, status=status.HTTP_201_CREATED)
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=True, methods=['get'])
+    def download(self, request, pk=None):
+        """Download transcription as text file"""
+        try:
+            transcription = self.get_object()
+            content = TranscriptionService.generate_download_file(transcription)
+            
+            response = HttpResponse(content, content_type='text/plain; charset=utf-8')
+            response['Content-Disposition'] = f'attachment; filename="transcription_{transcription.id}.txt"'
+            return response
+        except ValueError as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'])
+    def export_csv(self, request):
+        """Export transcription history to CSV"""
+        try:
+            transcriptions = self.get_queryset()
+            
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = 'attachment; filename="transcriptions.csv"'
+            
+            writer = csv.writer(response)
+            writer.writerow(['ID', 'Audio File', 'Language', 'Duration (min)', 'Cost (₹)', 'Status', 'Created At', 'Completed At'])
+            
+            for t in transcriptions:
+                writer.writerow([
+                    str(t.id),
+                    t.audio_file.filename,
+                    t.language,
+                    float(t.duration),
+                    float(t.cost),
+                    t.status,
+                    t.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                    t.completed_at.strftime('%Y-%m-%d %H:%M:%S') if t.completed_at else ''
+                ])
+            
+            return response
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def razorpay_webhook(request):
+    """Handle Razorpay webhook"""
+    try:
+        payload = request.body.decode('utf-8')
+        signature = request.headers.get('X-Razorpay-Signature')
+        
+        payment_service = PaymentService()
+        is_valid = payment_service.verify_webhook_signature(payload, signature)
+        
+        if not is_valid:
+            return Response(
+                {'error': 'Invalid signature'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        data = json.loads(payload)
+        event = data.get('event')
+        
+        if event == 'payment.captured':
+            payment = data.get('payload', {}).get('payment', {}).get('entity', {})
+            # Process payment captured event
+            # This is handled in verify_payment endpoint for now
+            pass
+        
+        return Response({'status': 'success'})
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

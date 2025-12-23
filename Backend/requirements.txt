@@ -1,0 +1,15 @@
+Django
+djangorestframework
+django-cors-headers
+django-allauth
+djangorestframework-simplejwt
+python-dotenv
+openai
+razorpay
+pydub
+mutagen
+hypothesis
+pytest
+pytest-django
+factory-boy
+responses
