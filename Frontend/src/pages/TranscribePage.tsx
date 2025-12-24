@@ -34,7 +34,6 @@ type AppState = 'idle' | 'uploaded' | 'processing' | 'completed' | 'error';
 
 export default function TranscribePage() {
   const { user, logout, refreshUser } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // State
   const [appState, setAppState] = useState<AppState>('idle');
@@ -395,11 +394,11 @@ export default function TranscribePage() {
             {appState === 'idle' && (
               <div
                 {...getRootProps()}
-                className={`dropzone p-8 md:p-12 cursor-pointer ${
+                className={`dropzone p-8 md:p-12 ${
                   isDragActive ? 'dropzone-active' : ''
-                } ${isUploading ? 'pointer-events-none opacity-70' : ''}`}
+                } ${isUploading ? 'pointer-events-none opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
               >
-                <input {...getInputProps()} ref={fileInputRef} />
+                <input {...getInputProps()} />
                 
                 <div className="text-center">
                   <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-blue-50 flex items-center justify-center">

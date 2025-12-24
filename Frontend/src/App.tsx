@@ -37,6 +37,19 @@ function AppContent() {
 function App() {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
   
+  // Initialize Facebook SDK with App ID
+  useEffect(() => {
+    const fbAppId = import.meta.env.VITE_FACEBOOK_APP_ID;
+    if (fbAppId && window.FB) {
+      window.FB.init({
+        appId: fbAppId,
+        cookie: true,
+        xfbml: true,
+        version: 'v18.0'
+      });
+    }
+  }, []);
+  
   // If no client ID, show a setup message
   if (!clientId) {
     return (

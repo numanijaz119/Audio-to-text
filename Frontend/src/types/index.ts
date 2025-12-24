@@ -99,6 +99,12 @@ export interface GoogleLoginRequest {
   provider_id: string;
 }
 
+export interface FacebookLoginRequest {
+  email: string;
+  name: string;
+  provider_id: string;
+}
+
 // Payment Types
 export interface PaymentOrder {
   order_id: string;

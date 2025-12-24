@@ -9,6 +9,7 @@ import type {
   TranscriptionLanguage,
   LoginResponse,
   GoogleLoginRequest,
+  FacebookLoginRequest,
   PaymentOrder,
   PaymentVerification,
 } from '../types';
@@ -74,6 +75,11 @@ api.interceptors.response.use(
 export const authApi = {
   googleLogin: async (data: GoogleLoginRequest): Promise<LoginResponse> => {
     const response = await api.post('/auth/google/login/', data);
+    return response.data;
+  },
+
+  facebookLogin: async (data: FacebookLoginRequest): Promise<LoginResponse> => {
+    const response = await api.post('/auth/facebook/login/', data);
     return response.data;
   },
 

@@ -26,10 +26,12 @@ export default function HistoryModal({ isOpen, onClose }: HistoryModalProps) {
     setLoading(true);
     try {
       const data = await transcriptionApi.getAll();
-      setTranscriptions(data);
+      // Ensure data is an array
+      setTranscriptions(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch transcriptions:', err);
       toast.error('Failed to load history');
+      setTranscriptions([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
@@ -97,12 +99,14 @@ export default function HistoryModal({ isOpen, onClose }: HistoryModalProps) {
     return styles[status] || 'badge-blue';
   };
 
-  const filteredTranscriptions = transcriptions.filter((t) => {
-    const matchesSearch = t.audio_filename.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          t.text?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredTranscriptions = Array.isArray(transcriptions) 
+    ? transcriptions.filter((t) => {
+        const matchesSearch = t.audio_filename.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              t.text?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = statusFilter === 'all' || t.status === statusFilter;
+        return matchesSearch && matchesStatus;
+      })
+    : [];
 
   if (!isOpen) return null;
 

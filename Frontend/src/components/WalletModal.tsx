@@ -39,9 +39,11 @@ export default function WalletModal({ isOpen, onClose, walletData, onRefresh }: 
     setLoadingTransactions(true);
     try {
       const data = await transactionApi.getAll();
-      setTransactions(data);
+      // Ensure data is an array
+      setTransactions(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch transactions:', err);
+      setTransactions([]); // Set empty array on error
     } finally {
       setLoadingTransactions(false);
     }
@@ -294,7 +296,7 @@ export default function WalletModal({ isOpen, onClose, walletData, onRefresh }: 
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {transactions.map((tx) => (
+                    {Array.isArray(transactions) && transactions.map((tx) => (
                       <div
                         key={tx.id}
                         className="flex items-center justify-between p-4 bg-slate-50 rounded-xl"

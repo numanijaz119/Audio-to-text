@@ -287,44 +287,78 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
     @method_decorator(ratelimit(key='user', rate='20/h', method='POST'))
     def create(self, request):
         """Create transcription request - Rate limited to 20 per hour"""
+        print(f"\n{'='*80}")
+        print(f"[API] TRANSCRIPTION CREATE ENDPOINT CALLED")
+        print(f"{'='*80}")
+        print(f"[API] User ID: {request.user.id}")
+        print(f"[API] User Email: {request.user.email}")
+        print(f"[API] Request data: {request.data}")
+        
         try:
+            print(f"[API] Validating request data...")
             serializer = TranscriptionCreateSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
+            print(f"[API] ✓ Request data validated")
+            print(f"[API] Audio File ID: {serializer.validated_data['audio_file_id']}")
+            print(f"[API] Language: {serializer.validated_data['language']}")
             
+            print(f"[API] Calling TranscriptionService.create_transcription()...")
             transcription = TranscriptionService.create_transcription(
                 serializer.validated_data['audio_file_id'],
                 serializer.validated_data['language'],
                 request.user
             )
+            print(f"[API] ✓ Transcription created with ID: {transcription.id}")
             
             # Try async processing with Celery, fallback to sync if not available
+            print(f"[API] Attempting to queue transcription with Celery...")
             try:
                 from .tasks import process_transcription_task
+                print(f"[API] ✓ Celery tasks module imported")
+                print(f"[API] Queuing task: process_transcription_task.delay({transcription.id})")
                 process_transcription_task.delay(str(transcription.id))
                 message = 'Transcription queued. Check status in a moment.'
+                print(f"[API] ✓ Task queued successfully")
             except Exception as celery_error:
                 # Celery not available, process synchronously
                 import logging
                 logger = logging.getLogger('api')
+                print(f"[API] ✗ Celery not available: {str(celery_error)}")
                 logger.warning(f"Celery not available, processing synchronously: {celery_error}")
+                print(f"[API] Falling back to synchronous processing...")
                 try:
+                    print(f"[API] Calling TranscriptionService.process_transcription()...")
                     TranscriptionService.process_transcription(transcription)
                     message = 'Transcription completed.'
+                    print(f"[API] ✓ Synchronous processing completed")
                 except Exception as process_error:
                     # Transcription failed, but record is created
+                    print(f"[API] ✗ Synchronous processing failed: {str(process_error)}")
                     message = 'Transcription failed. Check status for details.'
             
+            print(f"[API] Serializing transcription response...")
             result_serializer = TranscriptionSerializer(transcription)
+            print(f"[API] ✓ Response serialized")
+            print(f"[API] ✓ TRANSCRIPTION CREATE ENDPOINT COMPLETED SUCCESSFULLY")
+            print(f"{'='*80}\n")
+            
             return Response({
                 **result_serializer.data,
                 'message': message
             }, status=status.HTTP_201_CREATED)
         except ValueError as e:
+            print(f"[API] ✗ Validation Error: {str(e)}")
+            print(f"[API] ✗ TRANSCRIPTION CREATE ENDPOINT FAILED")
+            print(f"{'='*80}\n")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
+            print(f"[API] ✗ Unexpected Error: {str(e)}")
+            print(f"[API] Error type: {type(e).__name__}")
+            print(f"[API] ✗ TRANSCRIPTION CREATE ENDPOINT FAILED")
+            print(f"{'='*80}\n")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

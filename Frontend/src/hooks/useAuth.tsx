@@ -8,7 +8,8 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: () => void;
+  loginWithGoogle: () => void;
+  loginWithFacebook: () => void;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -82,13 +83,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
-  const login = useGoogleLogin({
+  const handleFacebookSuccess = useCallback(async (facebookResponse: any) => {
+    try {
+      setIsLoading(true);
+      
+      // Send to our backend
+      const response: LoginResponse = await authApi.facebookLogin({
+        email: facebookResponse.email,
+        name: facebookResponse.name,
+        provider_id: facebookResponse.userID || facebookResponse.id,
+      });
+
+      // Store tokens
+      localStorage.setItem('access_token', response.tokens.access);
+      localStorage.setItem('refresh_token', response.tokens.refresh);
+      
+      setUser(response.user);
+      
+      if (response.is_new_user) {
+        toast.success(`Welcome, ${response.user.name}! You have ${response.user.demo_minutes_remaining} free minutes to try.`);
+      } else {
+        toast.success(`Welcome back, ${response.user.name}!`);
+      }
+    } catch (error: any) {
+      console.error('Facebook login error:', error);
+      toast.error(error.response?.data?.error || 'Facebook login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const loginWithGoogle = useGoogleLogin({
     onSuccess: handleGoogleSuccess,
     onError: (error) => {
       console.error('Google login error:', error);
       toast.error('Google login failed. Please try again.');
     },
   });
+
+  const loginWithFacebook = useCallback(() => {
+    // This will be called from the Facebook button component
+    return handleFacebookSuccess;
+  }, [handleFacebookSuccess]);
 
   const logout = useCallback(() => {
     authApi.logout();
@@ -109,7 +145,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     isAuthenticated: !!user,
     isLoading,
-    login: () => login(),
+    loginWithGoogle: () => loginWithGoogle(),
+    loginWithFacebook,
     logout,
     refreshUser,
   };
