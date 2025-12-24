@@ -1,41 +1,46 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './store/authStore';
-import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import UploadPage from './pages/UploadPage';
-import TranscriptionsPage from './pages/TranscriptionsPage';
-import WalletPage from './pages/WalletPage';
-import Layout from './components/Layout';
+import AudioTranscriptionPage from './pages/AudioTranscriptionPage';
+import LoginModal from './components/LoginModal';
 
 const queryClient = new QueryClient();
 
-function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
+function AppContent() {
+  const { isAuthenticated, user, fetchUser } = useAuthStore();
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated && !user) {
+      fetchUser().catch(() => {
+        // Silent fail
+      });
+    }
+  }, [isAuthenticated, user, fetchUser]);
+
+  const handleLoginRequired = () => {
+    setShowLoginModal(true);
+  };
+
+  return (
+    <>
+      <AudioTranscriptionPage
+        isAuthenticated={isAuthenticated}
+        user={user}
+        onLoginRequired={handleLoginRequired}
+      />
+
+      {showLoginModal && (
+        <LoginModal onClose={() => setShowLoginModal(false)} />
+      )}
+    </>
+  );
 }
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route
-            path="/"
-            element={
-              <PrivateRoute>
-                <Layout />
-              </PrivateRoute>
-            }
-          >
-            <Route index element={<DashboardPage />} />
-            <Route path="upload" element={<UploadPage />} />
-            <Route path="transcriptions" element={<TranscriptionsPage />} />
-            <Route path="wallet" element={<WalletPage />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <AppContent />
     </QueryClientProvider>
   );
 }
