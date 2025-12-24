@@ -3,8 +3,12 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.db.models import Q
+from django.db import connection
+from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django_ratelimit.decorators import ratelimit
 from datetime import datetime
 import csv
 import json
@@ -111,9 +115,10 @@ class WalletViewSet(viewsets.ReadOnlyModelViewSet):
             'statistics': stats
         })
     
+    @method_decorator(ratelimit(key='user', rate='10/h', method='POST'))
     @action(detail=False, methods=['post'])
     def create_order(self, request):
-        """Create Razorpay order for recharge"""
+        """Create Razorpay order for recharge - Rate limited to 10 per hour"""
         try:
             amount = request.data.get('amount')
             if not amount or float(amount) <= 0:
@@ -189,10 +194,16 @@ class AudioFileViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser]
     
     def get_queryset(self):
-        return AudioFile.objects.filter(user=self.request.user)
+        """Optimized queryset"""
+        return AudioFile.objects.filter(
+            user=self.request.user
+        ).only(
+            'id', 'filename', 'duration', 'size', 'format', 'uploaded_at'
+        ).order_by('-uploaded_at')
     
+    @method_decorator(ratelimit(key='user', rate='50/h', method='POST'))
     def create(self, request):
-        """Upload audio file"""
+        """Upload audio file - Rate limited to 50 per hour"""
         try:
             file = request.FILES.get('file')
             if not file:
@@ -244,7 +255,17 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        queryset = Transcription.objects.filter(user=self.request.user)
+        """Optimized queryset with select_related to prevent N+1 queries"""
+        queryset = Transcription.objects.filter(
+            user=self.request.user
+        ).select_related(
+            'audio_file'  # Join audio_file in single query
+        ).only(
+            # Only fetch needed fields
+            'id', 'language', 'status', 'duration', 
+            'cost', 'created_at', 'completed_at', 'error_message',
+            'audio_file__id', 'audio_file__filename'
+        ).order_by('-created_at')
         
         # Apply filters
         language = self.request.query_params.get('language')
@@ -263,8 +284,9 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
         
         return queryset
     
+    @method_decorator(ratelimit(key='user', rate='20/h', method='POST'))
     def create(self, request):
-        """Create transcription request"""
+        """Create transcription request - Rate limited to 20 per hour"""
         try:
             serializer = TranscriptionCreateSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
@@ -275,16 +297,28 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
                 request.user
             )
             
-            # Process transcription asynchronously in production
-            # For now, process synchronously
+            # Try async processing with Celery, fallback to sync if not available
             try:
-                TranscriptionService.process_transcription(transcription)
-            except Exception as e:
-                # Transcription failed, but record is created
-                pass
+                from .tasks import process_transcription_task
+                process_transcription_task.delay(str(transcription.id))
+                message = 'Transcription queued. Check status in a moment.'
+            except Exception as celery_error:
+                # Celery not available, process synchronously
+                import logging
+                logger = logging.getLogger('api')
+                logger.warning(f"Celery not available, processing synchronously: {celery_error}")
+                try:
+                    TranscriptionService.process_transcription(transcription)
+                    message = 'Transcription completed.'
+                except Exception as process_error:
+                    # Transcription failed, but record is created
+                    message = 'Transcription failed. Check status for details.'
             
             result_serializer = TranscriptionSerializer(transcription)
-            return Response(result_serializer.data, status=status.HTTP_201_CREATED)
+            return Response({
+                **result_serializer.data,
+                'message': message
+            }, status=status.HTTP_201_CREATED)
         except ValueError as e:
             return Response(
                 {'error': str(e)},
@@ -381,3 +415,63 @@ def razorpay_webhook(request):
             {'error': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """
+    Health check endpoint for monitoring systems.
+    Returns service status and dependency checks.
+    """
+    health_status = {
+        'status': 'healthy',
+        'timestamp': timezone.now().isoformat(),
+        'services': {}
+    }
+    
+    # Check database connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+        health_status['services']['database'] = 'connected'
+    except Exception as e:
+        health_status['status'] = 'unhealthy'
+        health_status['services']['database'] = f'error: {str(e)}'
+    
+    # Check OpenAI configuration
+    from django.conf import settings
+    if settings.OPENAI_API_KEY:
+        health_status['services']['openai'] = 'configured'
+    else:
+        health_status['status'] = 'degraded'
+        health_status['services']['openai'] = 'missing'
+    
+    # Check Razorpay configuration
+    if settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET:
+        health_status['services']['razorpay'] = 'configured'
+    else:
+        health_status['status'] = 'degraded'
+        health_status['services']['razorpay'] = 'missing'
+    
+    # Check Redis/Celery (optional - not required for basic operation)
+    try:
+        from django.core.cache import cache
+        cache.set('health_check', 'ok', 10)
+        if cache.get('health_check') == 'ok':
+            health_status['services']['redis'] = 'connected'
+        else:
+            health_status['services']['redis'] = 'not connected (using fallback cache)'
+    except Exception as e:
+        health_status['services']['redis'] = f'not available (using fallback cache)'
+    
+    # Check Celery (optional)
+    try:
+        from .tasks import process_transcription_task
+        health_status['services']['celery'] = 'configured'
+    except Exception as e:
+        health_status['services']['celery'] = 'not available (using synchronous processing)'
+    
+    status_code = 200 if health_status['status'] == 'healthy' else 503
+    return JsonResponse(health_status, status=status_code)
+

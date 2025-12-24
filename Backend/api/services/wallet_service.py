@@ -2,6 +2,7 @@ from django.db import transaction
 from decimal import Decimal
 from ..models import Wallet, Transaction
 from django.conf import settings
+from ..utils.decorators import retry_on_deadlock
 import math
 
 
@@ -44,6 +45,7 @@ class WalletService:
         return max(cost, Decimal('0.00'))
     
     @staticmethod
+    @retry_on_deadlock(max_retries=3)
     @transaction.atomic
     def deduct_transcription_cost(user, duration_minutes):
         """
@@ -87,6 +89,7 @@ class WalletService:
         return transaction_obj, cost
     
     @staticmethod
+    @retry_on_deadlock(max_retries=3)
     @transaction.atomic
     def process_recharge(user, amount, payment_id, razorpay_order_id):
         """

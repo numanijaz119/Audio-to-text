@@ -1,10 +1,14 @@
 import os
+import logging
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from openai import OpenAI
+import openai
 from ..models import Transcription, AudioFile
 from .wallet_service import WalletService
+
+logger = logging.getLogger('api')
 
 
 class TranscriptionService:
@@ -50,6 +54,8 @@ class TranscriptionService:
         Property 10: Transcription Error Handling
         """
         try:
+            logger.info(f"Starting transcription {transcription.id} for user {transcription.user.id}")
+            
             # Update status to processing
             transcription.status = 'processing'
             transcription.save()
@@ -61,6 +67,8 @@ class TranscriptionService:
             )
             
             if not os.path.exists(audio_path):
+                logger.error(f"Audio file not found for transcription {transcription.id}: {transcription.audio_file.file_path}",
+                           extra={'user_id': str(transcription.user.id)})
                 raise FileNotFoundError("Audio file not found on disk")
             
             # Call OpenAI Whisper API
@@ -90,16 +98,32 @@ class TranscriptionService:
             transcription.completed_at = timezone.now()
             transcription.save()
             
+            logger.info(f"Transcription {transcription.id} completed successfully")
             return transcription
             
-        except Exception as e:
-            # Handle transcription failure
+        except openai.APIError as e:
+            logger.error(f"OpenAI API error for transcription {transcription.id}: {e}", 
+                        extra={'user_id': str(transcription.user.id), 'error_type': 'openai_api'})
             transcription.status = 'failed'
-            transcription.error_message = str(e)
+            transcription.error_message = "AI service temporarily unavailable. Please try again in a few minutes."
             transcription.save()
+            raise
             
-            # Note: Cost is NOT deducted on failure (Property 10)
-            raise e
+        except FileNotFoundError as e:
+            logger.error(f"Audio file not found for transcription {transcription.id}: {transcription.audio_file.file_path}",
+                        extra={'user_id': str(transcription.user.id)})
+            transcription.status = 'failed'
+            transcription.error_message = "Audio file not found. Please re-upload your file."
+            transcription.save()
+            raise
+            
+        except Exception as e:
+            logger.exception(f"Unexpected error in transcription {transcription.id}",
+                           extra={'user_id': str(transcription.user.id)})
+            transcription.status = 'failed'
+            transcription.error_message = "An unexpected error occurred. Our team has been notified."
+            transcription.save()
+            raise
     
     @staticmethod
     def get_transcription_history(user, filters=None):

@@ -14,6 +14,9 @@ urlpatterns = [
     path('auth/facebook/login/', views.facebook_login, name='facebook-login'),
     path('auth/user/', views.get_current_user, name='current-user'),
     
+    # Health check
+    path('health/', views.health_check, name='health-check'),
+    
     # Webhook
     path('payment/webhook/', views.razorpay_webhook, name='razorpay-webhook'),
     
