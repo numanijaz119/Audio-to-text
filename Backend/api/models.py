@@ -162,6 +162,7 @@ class Transcription(models.Model):
     ]
     
     LANGUAGE_CHOICES = [
+        ('auto', 'Auto Detect'),
         ('english', 'English'),
         ('hindi', 'Hindi'),
     ]

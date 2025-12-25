@@ -125,18 +125,18 @@ export default function WalletModal({ isOpen, onClose, walletData, onRefresh }: 
     <>
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 animate-fade-in" onClick={onClose} />
       
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl pointer-events-auto animate-scale-in max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 pointer-events-none">
+        <div className="w-full max-w-lg bg-white rounded-xl sm:rounded-2xl shadow-2xl pointer-events-auto animate-scale-in max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                <Wallet className="w-5 h-5 text-blue-600" />
+          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-100">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-50 flex items-center justify-center">
+                <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
               </div>
-              <h2 className="text-xl font-semibold text-slate-800">Wallet</h2>
+              <h2 className="text-lg sm:text-xl font-semibold text-slate-800">Wallet</h2>
             </div>
             <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
-              <X className="w-5 h-5 text-slate-400" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />
             </button>
           </div>
 
@@ -163,44 +163,44 @@ export default function WalletModal({ isOpen, onClose, walletData, onRefresh }: 
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {/* Balance Tab */}
             {activeTab === 'balance' && (
-              <div className="space-y-6">
-                <div className="p-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl text-white">
-                  <p className="text-blue-100 text-sm mb-1">Current Balance</p>
-                  <p className="text-4xl font-bold">₹{walletData?.wallet.balance.toFixed(2) || '0.00'}</p>
+              <div className="space-y-4 sm:space-y-6">
+                <div className="p-4 sm:p-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl sm:rounded-2xl text-white">
+                  <p className="text-blue-100 text-xs sm:text-sm mb-1">Current Balance</p>
+                  <p className="text-3xl sm:text-4xl font-bold">₹{walletData?.wallet.balance.toFixed(2) || '0.00'}</p>
                   
                   {(walletData?.wallet.demo_minutes_remaining || 0) > 0 && (
-                    <div className="mt-4 pt-4 border-t border-white/20">
-                      <p className="text-blue-100 text-sm">Free Minutes Remaining</p>
-                      <p className="text-2xl font-semibold">
+                    <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/20">
+                      <p className="text-blue-100 text-xs sm:text-sm">Free Minutes Remaining</p>
+                      <p className="text-xl sm:text-2xl font-semibold">
                         {walletData?.wallet.demo_minutes_remaining.toFixed(1)} min
                       </p>
                     </div>
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-slate-50 rounded-xl">
-                    <p className="text-slate-500 text-sm">Total Spent</p>
-                    <p className="text-xl font-semibold text-slate-800">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <div className="p-3 sm:p-4 bg-slate-50 rounded-xl">
+                    <p className="text-slate-500 text-xs sm:text-sm">Total Spent</p>
+                    <p className="text-lg sm:text-xl font-semibold text-slate-800">
                       ₹{walletData?.wallet.total_spent.toFixed(2) || '0.00'}
                     </p>
                   </div>
-                  <div className="p-4 bg-slate-50 rounded-xl">
-                    <p className="text-slate-500 text-sm">Minutes Used</p>
-                    <p className="text-xl font-semibold text-slate-800">
-                      {walletData?.wallet.total_minutes_used.toFixed(1) || '0'} min
+                  <div className="p-3 sm:p-4 bg-slate-50 rounded-xl">
+                    <p className="text-slate-500 text-xs sm:text-sm">Minutes Billed</p>
+                    <p className="text-lg sm:text-xl font-semibold text-slate-800">
+                      {(walletData?.wallet.total_minutes_used || 0).toFixed(0)} min
                     </p>
                   </div>
                 </div>
 
                 <button
                   onClick={() => setActiveTab('recharge')}
-                  className="w-full btn btn-primary"
+                  className="w-full btn btn-primary text-sm sm:text-base"
                 >
-                  <Plus className="w-5 h-5" />
+                  <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
                   Add Funds
                 </button>
               </div>
@@ -208,10 +208,10 @@ export default function WalletModal({ isOpen, onClose, walletData, onRefresh }: 
 
             {/* Recharge Tab */}
             {activeTab === 'recharge' && (
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
-                  <p className="text-sm font-medium text-slate-700 mb-3">Select Amount</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <p className="text-xs sm:text-sm font-medium text-slate-700 mb-2 sm:mb-3">Select Amount</p>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
                     {presetAmounts.map((amount) => (
                       <button
                         key={amount}
@@ -219,14 +219,14 @@ export default function WalletModal({ isOpen, onClose, walletData, onRefresh }: 
                           setSelectedAmount(amount);
                           setCustomAmount('');
                         }}
-                        className={`p-4 rounded-xl border-2 transition-all ${
+                        className={`p-3 sm:p-4 rounded-xl border-2 transition-all ${
                           selectedAmount === amount
                             ? 'border-blue-500 bg-blue-50 text-blue-700'
                             : 'border-slate-200 hover:border-blue-300 text-slate-700'
                         }`}
                       >
-                        <p className="text-2xl font-bold">₹{amount}</p>
-                        <p className="text-sm text-slate-500">{amount} minutes</p>
+                        <p className="text-xl sm:text-2xl font-bold">₹{amount}</p>
+                        <p className="text-xs sm:text-sm text-slate-500">{amount} minutes</p>
                       </button>
                     ))}
                   </div>
@@ -237,16 +237,16 @@ export default function WalletModal({ isOpen, onClose, walletData, onRefresh }: 
                     <div className="w-full border-t border-slate-200" />
                   </div>
                   <div className="relative flex justify-center">
-                    <span className="bg-white px-4 text-sm text-slate-400">or enter custom amount</span>
+                    <span className="bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-400">or enter custom amount</span>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">
                     Custom Amount
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">₹</span>
+                    <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-base">₹</span>
                     <input
                       type="number"
                       value={customAmount}
@@ -255,7 +255,7 @@ export default function WalletModal({ isOpen, onClose, walletData, onRefresh }: 
                         setSelectedAmount(null);
                       }}
                       placeholder="Enter amount"
-                      className="input pl-8"
+                      className="input pl-7 sm:pl-8 text-sm sm:text-base"
                       min="10"
                     />
                   </div>
@@ -265,16 +265,16 @@ export default function WalletModal({ isOpen, onClose, walletData, onRefresh }: 
                 <button
                   onClick={handleRecharge}
                   disabled={isProcessing || (!selectedAmount && !customAmount)}
-                  className="w-full btn btn-primary"
+                  className="w-full btn btn-primary text-sm sm:text-base"
                 >
                   {isProcessing ? (
                     <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                       Processing...
                     </>
                   ) : (
                     <>
-                      <CheckCircle className="w-5 h-5" />
+                      <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                       Pay ₹{selectedAmount || customAmount || 0}
                     </>
                   )}
@@ -286,39 +286,39 @@ export default function WalletModal({ isOpen, onClose, walletData, onRefresh }: 
             {activeTab === 'history' && (
               <div>
                 {loadingTransactions ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                  <div className="flex items-center justify-center py-8 sm:py-12">
+                    <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500 animate-spin" />
                   </div>
                 ) : transactions.length === 0 ? (
-                  <div className="text-center py-12">
-                    <History className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                    <p className="text-slate-500">No transactions yet</p>
+                  <div className="text-center py-8 sm:py-12">
+                    <History className="w-10 h-10 sm:w-12 sm:h-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-500 text-sm sm:text-base">No transactions yet</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2 sm:space-y-3">
                     {Array.isArray(transactions) && transactions.map((tx) => (
                       <div
                         key={tx.id}
-                        className="flex items-center justify-between p-4 bg-slate-50 rounded-xl"
+                        className="flex items-center justify-between p-3 sm:p-4 bg-slate-50 rounded-xl"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                             tx.type === 'recharge' ? 'bg-emerald-100' : 'bg-blue-100'
                           }`}>
                             {tx.type === 'recharge' ? (
-                              <ArrowDownRight className="w-5 h-5 text-emerald-600" />
+                              <ArrowDownRight className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
                             ) : (
-                              <ArrowUpRight className="w-5 h-5 text-blue-600" />
+                              <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                             )}
                           </div>
-                          <div>
-                            <p className="font-medium text-slate-800 text-sm">
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-800 text-xs sm:text-sm truncate">
                               {tx.type === 'recharge' ? 'Wallet Recharge' : 'Transcription'}
                             </p>
                             <p className="text-xs text-slate-400">{formatDate(tx.created_at)}</p>
                           </div>
                         </div>
-                        <p className={`font-semibold ${
+                        <p className={`font-semibold text-sm sm:text-base flex-shrink-0 ${
                           tx.type === 'recharge' ? 'text-emerald-600' : 'text-slate-700'
                         }`}>
                           {tx.type === 'recharge' ? '+' : '-'}₹{tx.amount.toFixed(2)}

@@ -41,7 +41,7 @@ export default function TranscribePage() {
   const [audioFile, setAudioFile] = useState<AudioFile | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [language, setLanguage] = useState<TranscriptionLanguage>('english');
+  const [language, setLanguage] = useState<TranscriptionLanguage>('auto');
   const [transcription, setTranscription] = useState<Transcription | null>(null);
   const [estimatedCost, setEstimatedCost] = useState(0);
   const [hasSufficientBalance, setHasSufficientBalance] = useState(true);

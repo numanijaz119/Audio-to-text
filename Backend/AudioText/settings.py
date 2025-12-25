@@ -210,6 +210,9 @@ MEDIA_URL = os.getenv('MEDIA_URL', '/media/')
 # OpenAI
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
+# AssemblyAI
+ASSEMBLYAI_API_KEY = os.getenv('ASSEMBLY_AI_KEYS')
+
 # Razorpay
 RAZORPAY_KEY_ID = os.getenv('RAZORPAY_KEY_ID')
 RAZORPAY_KEY_SECRET = os.getenv('RAZORPAY_KEY_SECRET')
@@ -223,15 +226,7 @@ MAX_AUDIO_DURATION_MINUTES = 60
 ALLOWED_AUDIO_FORMATS = ['mp3', 'wav', 'm4a', 'flac', 'ogg']
 MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100MB
 
-# Celery Configuration (Optional - falls back to synchronous processing if not available)
-CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'UTC'
-CELERY_TASK_ALWAYS_EAGER = os.getenv('CELERY_ALWAYS_EAGER', 'False') == 'True'  # Set to True to run tasks synchronously
-
+# Celery Configuration removed - using synchronous processing
 # Cache for rate limiting (Optional - uses in-memory cache if Redis not available)
 # Note: In-memory cache works for development but rate limits won't be shared across processes
 CACHES = {

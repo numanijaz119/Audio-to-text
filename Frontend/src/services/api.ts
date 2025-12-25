@@ -162,12 +162,21 @@ export const transcriptionApi = {
 
   getAll: async (filters?: Record<string, string>): Promise<Transcription[]> => {
     const response = await api.get('/transcriptions/', { params: filters });
-    return response.data;
+    // Handle paginated response from DRF
+    if (response.data && typeof response.data === 'object' && 'results' in response.data) {
+      return response.data.results;
+    }
+    // Fallback to direct array if not paginated
+    return Array.isArray(response.data) ? response.data : [];
   },
 
   get: async (id: string): Promise<Transcription> => {
     const response = await api.get(`/transcriptions/${id}/`);
     return response.data;
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/transcriptions/${id}/`);
   },
 
   download: async (id: string): Promise<Blob> => {

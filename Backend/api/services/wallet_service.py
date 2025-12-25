@@ -13,28 +13,16 @@ class WalletService:
         Check if user has sufficient demo minutes or wallet balance.
         Property 14: Wallet Charging After Demo Exhaustion
         """
-        print(f"[WALLET] check_sufficient_balance() called")
-        print(f"[WALLET] User ID: {user.id}")
-        print(f"[WALLET] Duration: {duration_minutes} minutes")
-        
         wallet = user.wallet
-        print(f"[WALLET] Current balance: ₹{wallet.balance}")
-        print(f"[WALLET] Demo minutes remaining: {wallet.demo_minutes_remaining}")
-        
         cost = WalletService.calculate_cost(duration_minutes, wallet.demo_minutes_remaining)
-        print(f"[WALLET] Calculated cost: ₹{cost}")
         
         if wallet.demo_minutes_remaining >= Decimal(str(duration_minutes)):
-            print(f"[WALLET] ✓ Sufficient demo minutes available")
             return True, cost
         
         remaining_duration = Decimal(str(duration_minutes)) - wallet.demo_minutes_remaining
         remaining_cost = remaining_duration * Decimal(str(settings.COST_PER_MINUTE))
-        print(f"[WALLET] Remaining duration after demo: {remaining_duration} minutes")
-        print(f"[WALLET] Remaining cost: ₹{remaining_cost}")
         
         has_balance = wallet.balance >= remaining_cost
-        print(f"[WALLET] Has sufficient balance: {has_balance}")
         
         return has_balance, cost
     
@@ -44,26 +32,17 @@ class WalletService:
         Calculate transcription cost considering demo minutes.
         Property 15: Transcription Cost Calculation
         """
-        print(f"[WALLET] calculate_cost() called")
-        print(f"[WALLET] Duration: {duration_minutes} minutes")
-        print(f"[WALLET] Demo available: {demo_minutes_available} minutes")
-        
         duration = Decimal(str(duration_minutes))
         demo_available = Decimal(str(demo_minutes_available))
         
         # Round up to nearest minute
         duration_rounded = Decimal(math.ceil(float(duration)))
-        print(f"[WALLET] Duration rounded up: {duration_rounded} minutes")
         
         if demo_available >= duration_rounded:
-            print(f"[WALLET] ✓ Cost covered by demo minutes: ₹0.00")
             return Decimal('0.00')
         
         billable_minutes = duration_rounded - demo_available
         cost = billable_minutes * Decimal(str(settings.COST_PER_MINUTE))
-        print(f"[WALLET] Billable minutes: {billable_minutes}")
-        print(f"[WALLET] Cost per minute: ₹{settings.COST_PER_MINUTE}")
-        print(f"[WALLET] Total cost: ₹{cost}")
         
         return max(cost, Decimal('0.00'))
     
@@ -93,6 +72,9 @@ class WalletService:
         print(f"[WALLET] Balance before: ₹{balance_before}")
         print(f"[WALLET] Demo minutes before: {demo_before}")
         
+        # Track the billed minutes (rounded up)
+        billed_minutes = duration_rounded
+        
         # Deduct from demo minutes first
         print(f"[WALLET] Deducting from demo minutes...")
         if wallet.demo_minutes_remaining > 0:
@@ -116,7 +98,9 @@ class WalletService:
         else:
             print(f"[WALLET] No balance deduction needed (covered by demo)")
         
-        wallet.total_minutes_used += Decimal(str(duration_minutes))
+        # Track billed minutes (rounded up) instead of actual duration
+        wallet.total_minutes_used += billed_minutes
+        print(f"[WALLET] Billed minutes: {billed_minutes}")
         print(f"[WALLET] Total minutes used: {wallet.total_minutes_used}")
         
         print(f"[WALLET] Saving wallet to database...")
@@ -131,7 +115,7 @@ class WalletService:
             amount=cost,
             balance_before=balance_before,
             balance_after=wallet.balance,
-            description=f'Transcription cost for {duration_minutes:.2f} minutes (Demo: {demo_before:.2f} -> {wallet.demo_minutes_remaining:.2f})'
+            description=f'Transcription cost for {duration_minutes:.2f} minutes (Billed: {billed_minutes} min, Demo: {demo_before:.2f} -> {wallet.demo_minutes_remaining:.2f})'
         )
         print(f"[WALLET] ✓ Transaction created with ID: {transaction_obj.id}")
         print(f"[WALLET] Transaction type: {transaction_obj.type}")

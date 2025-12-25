@@ -2,40 +2,67 @@ import razorpay
 import hmac
 import hashlib
 from django.conf import settings
+import logging
+
+logger = logging.getLogger('api')
 
 
 class PaymentService:
     def __init__(self):
-        self.client = razorpay.Client(
-            auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
-        )
+        try:
+            self.client = razorpay.Client(
+                auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize Razorpay client: {e}")
+            raise
     
     def create_order(self, amount, user):
         """
         Create Razorpay order for wallet recharge.
         Property 17: Razorpay Payment Session Creation
         """
-        # Amount should be in paise (smallest currency unit)
-        amount_paise = int(float(amount) * 100)
-        
-        order_data = {
-            'amount': amount_paise,
-            'currency': 'INR',
-            'receipt': f'order_{user.id}',
-            'notes': {
-                'user_id': str(user.id),
-                'user_email': user.email,
+        try:
+            # Amount should be in paise (smallest currency unit)
+            amount_paise = int(float(amount) * 100)
+            
+            order_data = {
+                'amount': amount_paise,
+                'currency': 'INR',
+                'receipt': f'order_{user.id}',
+                'notes': {
+                    'user_id': str(user.id),
+                    'user_email': user.email,
+                }
             }
-        }
-        
-        order = self.client.order.create(data=order_data)
-        
-        return {
-            'order_id': order['id'],
-            'amount': amount,
-            'currency': 'INR',
-            'key_id': settings.RAZORPAY_KEY_ID,
-        }
+            
+            logger.info(f"Creating Razorpay order: {order_data}")
+            logger.info(f"Using Razorpay Key ID: {settings.RAZORPAY_KEY_ID[:10]}...")
+            
+            order = self.client.order.create(data=order_data)
+            logger.info(f"Razorpay order created: {order}")
+            
+            return {
+                'order_id': order['id'],
+                'amount': amount,
+                'currency': 'INR',
+                'key_id': settings.RAZORPAY_KEY_ID,
+            }
+        except razorpay.errors.BadRequestError as e:
+            logger.error(f"Razorpay Bad Request: {e}")
+            raise ValueError("Invalid payment request. Please check your payment details.")
+        except razorpay.errors.GatewayError as e:
+            logger.error(f"Razorpay Gateway Error: {e}")
+            raise ValueError("Payment gateway error. Please try again later.")
+        except razorpay.errors.ServerError as e:
+            logger.error(f"Razorpay Server Error: {e}")
+            raise ValueError("Payment service temporarily unavailable. Please try again later.")
+        except Exception as e:
+            logger.exception(f"Error creating Razorpay order: {e}")
+            # Check if it's an authentication error
+            if "401" in str(e) or "Unauthorized" in str(e):
+                raise ValueError("Payment gateway authentication failed. Please contact support.")
+            raise ValueError(f"Failed to create payment order: {str(e)}")
     
     def verify_payment_signature(self, order_id, payment_id, signature):
         """

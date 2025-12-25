@@ -67,4 +67,4 @@ class TranscriptionSerializer(serializers.ModelSerializer):
 
 class TranscriptionCreateSerializer(serializers.Serializer):
     audio_file_id = serializers.UUIDField()
-    language = serializers.ChoiceField(choices=['english', 'hindi'])
+    language = serializers.ChoiceField(choices=['auto', 'english', 'hindi'])

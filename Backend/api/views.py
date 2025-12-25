@@ -119,8 +119,13 @@ class WalletViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'])
     def create_order(self, request):
         """Create Razorpay order for recharge - Rate limited to 10 per hour"""
+        import logging
+        logger = logging.getLogger('api')
+        
         try:
             amount = request.data.get('amount')
+            logger.info(f"Create order request - User: {request.user.id}, Amount: {amount}")
+            
             if not amount or float(amount) <= 0:
                 return Response(
                     {'error': 'Invalid amount'},
@@ -130,8 +135,10 @@ class WalletViewSet(viewsets.ReadOnlyModelViewSet):
             payment_service = PaymentService()
             order = payment_service.create_order(amount, request.user)
             
+            logger.info(f"Order created successfully - Order ID: {order.get('order_id')}")
             return Response(order)
         except Exception as e:
+            logger.exception(f"Error creating order for user {request.user.id}")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -284,81 +291,51 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
         
         return queryset
     
+    def destroy(self, request, pk=None):
+        """Delete transcription"""
+        try:
+            transcription = self.get_object()
+            transcription.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     @method_decorator(ratelimit(key='user', rate='20/h', method='POST'))
     def create(self, request):
-        """Create transcription request - Rate limited to 20 per hour"""
-        print(f"\n{'='*80}")
-        print(f"[API] TRANSCRIPTION CREATE ENDPOINT CALLED")
-        print(f"{'='*80}")
-        print(f"[API] User ID: {request.user.id}")
-        print(f"[API] User Email: {request.user.email}")
-        print(f"[API] Request data: {request.data}")
-        
+        """Create transcription request and process synchronously - Rate limited to 20 per hour"""
         try:
-            print(f"[API] Validating request data...")
             serializer = TranscriptionCreateSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            print(f"[API] ✓ Request data validated")
-            print(f"[API] Audio File ID: {serializer.validated_data['audio_file_id']}")
-            print(f"[API] Language: {serializer.validated_data['language']}")
             
-            print(f"[API] Calling TranscriptionService.create_transcription()...")
             transcription = TranscriptionService.create_transcription(
                 serializer.validated_data['audio_file_id'],
                 serializer.validated_data['language'],
                 request.user
             )
-            print(f"[API] ✓ Transcription created with ID: {transcription.id}")
             
-            # Try async processing with Celery, fallback to sync if not available
-            print(f"[API] Attempting to queue transcription with Celery...")
+            # Process transcription synchronously
             try:
-                from .tasks import process_transcription_task
-                print(f"[API] ✓ Celery tasks module imported")
-                print(f"[API] Queuing task: process_transcription_task.delay({transcription.id})")
-                process_transcription_task.delay(str(transcription.id))
-                message = 'Transcription queued. Check status in a moment.'
-                print(f"[API] ✓ Task queued successfully")
-            except Exception as celery_error:
-                # Celery not available, process synchronously
-                import logging
-                logger = logging.getLogger('api')
-                print(f"[API] ✗ Celery not available: {str(celery_error)}")
-                logger.warning(f"Celery not available, processing synchronously: {celery_error}")
-                print(f"[API] Falling back to synchronous processing...")
-                try:
-                    print(f"[API] Calling TranscriptionService.process_transcription()...")
-                    TranscriptionService.process_transcription(transcription)
-                    message = 'Transcription completed.'
-                    print(f"[API] ✓ Synchronous processing completed")
-                except Exception as process_error:
-                    # Transcription failed, but record is created
-                    print(f"[API] ✗ Synchronous processing failed: {str(process_error)}")
-                    message = 'Transcription failed. Check status for details.'
+                TranscriptionService.process_transcription(transcription)
+                message = 'Transcription completed successfully.'
+            except Exception as process_error:
+                # Transcription failed, but record is created
+                message = 'Transcription failed. Check status for details.'
             
-            print(f"[API] Serializing transcription response...")
             result_serializer = TranscriptionSerializer(transcription)
-            print(f"[API] ✓ Response serialized")
-            print(f"[API] ✓ TRANSCRIPTION CREATE ENDPOINT COMPLETED SUCCESSFULLY")
-            print(f"{'='*80}\n")
             
             return Response({
                 **result_serializer.data,
                 'message': message
             }, status=status.HTTP_201_CREATED)
         except ValueError as e:
-            print(f"[API] ✗ Validation Error: {str(e)}")
-            print(f"[API] ✗ TRANSCRIPTION CREATE ENDPOINT FAILED")
-            print(f"{'='*80}\n")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
-            print(f"[API] ✗ Unexpected Error: {str(e)}")
-            print(f"[API] Error type: {type(e).__name__}")
-            print(f"[API] ✗ TRANSCRIPTION CREATE ENDPOINT FAILED")
-            print(f"{'='*80}\n")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -473,13 +450,13 @@ def health_check(request):
         health_status['status'] = 'unhealthy'
         health_status['services']['database'] = f'error: {str(e)}'
     
-    # Check OpenAI configuration
+    # Check AssemblyAI configuration
     from django.conf import settings
-    if settings.OPENAI_API_KEY:
-        health_status['services']['openai'] = 'configured'
+    if settings.ASSEMBLYAI_API_KEY:
+        health_status['services']['assemblyai'] = 'configured'
     else:
         health_status['status'] = 'degraded'
-        health_status['services']['openai'] = 'missing'
+        health_status['services']['assemblyai'] = 'missing'
     
     # Check Razorpay configuration
     if settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET:
@@ -488,23 +465,16 @@ def health_check(request):
         health_status['status'] = 'degraded'
         health_status['services']['razorpay'] = 'missing'
     
-    # Check Redis/Celery (optional - not required for basic operation)
+    # Check cache (optional - uses in-memory cache if Redis not available)
     try:
         from django.core.cache import cache
         cache.set('health_check', 'ok', 10)
         if cache.get('health_check') == 'ok':
-            health_status['services']['redis'] = 'connected'
+            health_status['services']['cache'] = 'connected'
         else:
-            health_status['services']['redis'] = 'not connected (using fallback cache)'
+            health_status['services']['cache'] = 'not connected (using fallback cache)'
     except Exception as e:
-        health_status['services']['redis'] = f'not available (using fallback cache)'
-    
-    # Check Celery (optional)
-    try:
-        from .tasks import process_transcription_task
-        health_status['services']['celery'] = 'configured'
-    except Exception as e:
-        health_status['services']['celery'] = 'not available (using synchronous processing)'
+        health_status['services']['cache'] = f'not available (using fallback cache)'
     
     status_code = 200 if health_status['status'] == 'healthy' else 503
     return JsonResponse(health_status, status=status_code)

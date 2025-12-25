@@ -60,7 +60,7 @@ export interface AudioUploadResponse {
 
 // Transcription Types
 export type TranscriptionStatus = 'pending' | 'processing' | 'completed' | 'failed';
-export type TranscriptionLanguage = 'english' | 'hindi';
+export type TranscriptionLanguage = 'auto' | 'english' | 'hindi';
 
 export interface Transcription {
   id: string;
@@ -152,6 +152,7 @@ export const MAX_DURATION_MINUTES = 60;
 
 // Language Options
 export const LANGUAGE_OPTIONS: { value: TranscriptionLanguage; label: string }[] = [
+  { value: 'auto', label: 'Auto Detect' },
   { value: 'english', label: 'English' },
   { value: 'hindi', label: 'Hindi' },
 ];
