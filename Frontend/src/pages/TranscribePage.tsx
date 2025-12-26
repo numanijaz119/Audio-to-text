@@ -53,6 +53,7 @@ export default function TranscribePage() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Fetch wallet data
   useEffect(() => {
@@ -66,6 +67,20 @@ export default function TranscribePage() {
     };
     fetchWallet();
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showDropdown]);
 
   // File validation
   const validateFile = useCallback((file: File): string | null => {
@@ -312,7 +327,7 @@ export default function TranscribePage() {
               </button>
 
               {/* User Dropdown */}
-              <div className="relative">
+              <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setShowDropdown(!showDropdown)}
                   className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all"

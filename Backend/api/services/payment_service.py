@@ -59,10 +59,17 @@ class PaymentService:
             raise ValueError("Payment service temporarily unavailable. Please try again later.")
         except Exception as e:
             logger.exception(f"Error creating Razorpay order: {e}")
+            
+            # Check for JSON decode error (invalid credentials)
+            if "JSONDecodeError" in str(type(e)) or "Expecting value" in str(e):
+                logger.error("Razorpay returned empty response - likely invalid API credentials")
+                raise ValueError("Payment gateway configuration error. Please contact support.")
+            
             # Check if it's an authentication error
             if "401" in str(e) or "Unauthorized" in str(e):
                 raise ValueError("Payment gateway authentication failed. Please contact support.")
-            raise ValueError(f"Failed to create payment order: {str(e)}")
+            
+            raise ValueError("Payment service is currently unavailable. Please try again later.")
     
     def verify_payment_signature(self, order_id, payment_id, signature):
         """
