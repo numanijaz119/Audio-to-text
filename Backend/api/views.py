@@ -119,8 +119,13 @@ class WalletViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'])
     def create_order(self, request):
         """Create Razorpay order for recharge - Rate limited to 10 per hour"""
+        import logging
+        logger = logging.getLogger('api')
+        
         try:
             amount = request.data.get('amount')
+            logger.info(f"Create order request - User: {request.user.id}, Amount: {amount}")
+            
             if not amount or float(amount) <= 0:
                 return Response(
                     {'error': 'Invalid amount'},
@@ -130,8 +135,10 @@ class WalletViewSet(viewsets.ReadOnlyModelViewSet):
             payment_service = PaymentService()
             order = payment_service.create_order(amount, request.user)
             
+            logger.info(f"Order created successfully - Order ID: {order.get('order_id')}")
             return Response(order)
         except Exception as e:
+            logger.exception(f"Error creating order for user {request.user.id}")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -284,9 +291,21 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
         
         return queryset
     
+    def destroy(self, request, pk=None):
+        """Delete transcription"""
+        try:
+            transcription = self.get_object()
+            transcription.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     @method_decorator(ratelimit(key='user', rate='20/h', method='POST'))
     def create(self, request):
-        """Create transcription request - Rate limited to 20 per hour"""
+        """Create transcription request and process synchronously - Rate limited to 20 per hour"""
         try:
             serializer = TranscriptionCreateSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
@@ -297,24 +316,16 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
                 request.user
             )
             
-            # Try async processing with Celery, fallback to sync if not available
+            # Process transcription synchronously
             try:
-                from .tasks import process_transcription_task
-                process_transcription_task.delay(str(transcription.id))
-                message = 'Transcription queued. Check status in a moment.'
-            except Exception as celery_error:
-                # Celery not available, process synchronously
-                import logging
-                logger = logging.getLogger('api')
-                logger.warning(f"Celery not available, processing synchronously: {celery_error}")
-                try:
-                    TranscriptionService.process_transcription(transcription)
-                    message = 'Transcription completed.'
-                except Exception as process_error:
-                    # Transcription failed, but record is created
-                    message = 'Transcription failed. Check status for details.'
+                TranscriptionService.process_transcription(transcription)
+                message = 'Transcription completed successfully.'
+            except Exception as process_error:
+                # Transcription failed, but record is created
+                message = 'Transcription failed. Check status for details.'
             
             result_serializer = TranscriptionSerializer(transcription)
+            
             return Response({
                 **result_serializer.data,
                 'message': message
@@ -439,13 +450,13 @@ def health_check(request):
         health_status['status'] = 'unhealthy'
         health_status['services']['database'] = f'error: {str(e)}'
     
-    # Check OpenAI configuration
+    # Check AssemblyAI configuration
     from django.conf import settings
-    if settings.OPENAI_API_KEY:
-        health_status['services']['openai'] = 'configured'
+    if settings.ASSEMBLYAI_API_KEY:
+        health_status['services']['assemblyai'] = 'configured'
     else:
         health_status['status'] = 'degraded'
-        health_status['services']['openai'] = 'missing'
+        health_status['services']['assemblyai'] = 'missing'
     
     # Check Razorpay configuration
     if settings.RAZORPAY_KEY_ID and settings.RAZORPAY_KEY_SECRET:
@@ -454,23 +465,16 @@ def health_check(request):
         health_status['status'] = 'degraded'
         health_status['services']['razorpay'] = 'missing'
     
-    # Check Redis/Celery (optional - not required for basic operation)
+    # Check cache (optional - uses in-memory cache if Redis not available)
     try:
         from django.core.cache import cache
         cache.set('health_check', 'ok', 10)
         if cache.get('health_check') == 'ok':
-            health_status['services']['redis'] = 'connected'
+            health_status['services']['cache'] = 'connected'
         else:
-            health_status['services']['redis'] = 'not connected (using fallback cache)'
+            health_status['services']['cache'] = 'not connected (using fallback cache)'
     except Exception as e:
-        health_status['services']['redis'] = f'not available (using fallback cache)'
-    
-    # Check Celery (optional)
-    try:
-        from .tasks import process_transcription_task
-        health_status['services']['celery'] = 'configured'
-    except Exception as e:
-        health_status['services']['celery'] = 'not available (using synchronous processing)'
+        health_status['services']['cache'] = f'not available (using fallback cache)'
     
     status_code = 200 if health_status['status'] == 'healthy' else 503
     return JsonResponse(health_status, status=status_code)

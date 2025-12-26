@@ -3,8 +3,7 @@ import logging
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from openai import OpenAI
-import openai
+import assemblyai as aai
 from ..models import Transcription, AudioFile
 from .wallet_service import WalletService
 
@@ -48,7 +47,7 @@ class TranscriptionService:
     @transaction.atomic
     def process_transcription(transcription):
         """
-        Process transcription using OpenAI Whisper API.
+        Process transcription using AssemblyAI API.
         Property 8: Transcription Processing
         Property 9: Transcription Result Persistence
         Property 10: Transcription Error Handling
@@ -71,19 +70,28 @@ class TranscriptionService:
                            extra={'user_id': str(transcription.user.id)})
                 raise FileNotFoundError("Audio file not found on disk")
             
-            # Call OpenAI Whisper API
-            client = OpenAI(api_key=settings.OPENAI_API_KEY)
+            # Configure AssemblyAI
+            aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
             
-            with open(audio_path, 'rb') as audio_file:
-                # Map language to Whisper language codes
+            # Map language to AssemblyAI language codes
+            if transcription.language == 'auto':
+                language_code = None  # Auto-detect
+            else:
                 language_code = 'en' if transcription.language == 'english' else 'hi'
-                
-                response = client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    language=language_code,
-                    response_format="text"
-                )
+            
+            # Configure transcription settings
+            config = aai.TranscriptionConfig(
+                language_code=language_code,
+                punctuate=True,
+                format_text=True
+            )
+            
+            transcriber = aai.Transcriber(config=config)
+            transcript = transcriber.transcribe(audio_path)
+            
+            # Check if transcription was successful
+            if transcript.status == aai.TranscriptStatus.error:
+                raise Exception(f"Transcription failed: {transcript.error}")
             
             # Deduct cost from wallet
             transaction_obj, actual_cost = WalletService.deduct_transcription_cost(
@@ -92,22 +100,15 @@ class TranscriptionService:
             )
             
             # Update transcription with result
-            transcription.text = response
+            transcription.text = transcript.text
             transcription.cost = actual_cost
             transcription.status = 'completed'
             transcription.completed_at = timezone.now()
             transcription.save()
             
             logger.info(f"Transcription {transcription.id} completed successfully")
-            return transcription
             
-        except openai.APIError as e:
-            logger.error(f"OpenAI API error for transcription {transcription.id}: {e}", 
-                        extra={'user_id': str(transcription.user.id), 'error_type': 'openai_api'})
-            transcription.status = 'failed'
-            transcription.error_message = "AI service temporarily unavailable. Please try again in a few minutes."
-            transcription.save()
-            raise
+            return transcription
             
         except FileNotFoundError as e:
             logger.error(f"Audio file not found for transcription {transcription.id}: {transcription.audio_file.file_path}",

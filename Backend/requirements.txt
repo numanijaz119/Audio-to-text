@@ -5,6 +5,7 @@ django-allauth
 djangorestframework-simplejwt
 python-dotenv
 openai
+assemblyai
 razorpay
 pydub
 mutagen
@@ -15,6 +16,4 @@ factory-boy
 responses
 
 # Production improvements
-celery==5.3.6
-redis==5.0.1
 django-ratelimit==4.1.0

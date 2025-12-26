@@ -1,11 +1,8 @@
-import { useState } from 'react';
-import { X, Wallet, Plus, History } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiService } from '../services/api.service';
-
-interface Props {
-  onClose: () => void;
-}
+import { useState, useEffect } from 'react';
+import { X, Wallet, History, Plus, Loader2, CheckCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { walletApi, transactionApi } from '../services/api';
+import type { WalletDetails, Transaction } from '../types';
+import toast from 'react-hot-toast';
 
 declare global {
   interface Window {
@@ -13,192 +10,328 @@ declare global {
   }
 }
 
-export default function WalletModal({ onClose }: Props) {
-  const [rechargeAmount, setRechargeAmount] = useState('');
-  const [activeTab, setActiveTab] = useState<'recharge' | 'history'>('recharge');
-  const queryClient = useQueryClient();
+interface WalletModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  walletData: WalletDetails | null;
+  onRefresh: () => void;
+}
 
-  const { data: walletData } = useQuery({
-    queryKey: ['wallet'],
-    queryFn: apiService.getWallet,
-  });
+type TabType = 'balance' | 'recharge' | 'history';
 
-  const { data: transactions } = useQuery({
-    queryKey: ['transactions'],
-    queryFn: apiService.getTransactions,
-  });
+export default function WalletModal({ isOpen, onClose, walletData, onRefresh }: WalletModalProps) {
+  const [activeTab, setActiveTab] = useState<TabType>('balance');
+  const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
+  const [customAmount, setCustomAmount] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
 
-  const createOrderMutation = useMutation({
-    mutationFn: apiService.createOrder,
-    onSuccess: (orderData) => {
+  const presetAmounts = [100, 250, 500, 1000];
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'history') {
+      fetchTransactions();
+    }
+  }, [isOpen, activeTab]);
+
+  const fetchTransactions = async () => {
+    setLoadingTransactions(true);
+    try {
+      const data = await transactionApi.getAll();
+      // Ensure data is an array
+      setTransactions(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to fetch transactions:', err);
+      setTransactions([]); // Set empty array on error
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
+
+  const handleRecharge = async () => {
+    const amount = selectedAmount || parseFloat(customAmount);
+    
+    if (!amount || amount < 10) {
+      toast.error('Minimum recharge amount is ₹10');
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const order = await walletApi.createOrder(amount);
+
+      if (!window.Razorpay) {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+        document.body.appendChild(script);
+        await new Promise(resolve => script.onload = resolve);
+      }
+
       const options = {
-        key: orderData.key_id,
-        amount: orderData.amount * 100,
-        currency: orderData.currency,
-        order_id: orderData.order_id,
-        name: 'AudioText',
+        key: order.key_id,
+        amount: order.amount * 100,
+        currency: order.currency,
+        order_id: order.order_id,
+        name: 'AudioScribe',
         description: 'Wallet Recharge',
+        theme: { color: '#3b82f6' },
         handler: async (response: any) => {
           try {
-            await apiService.verifyPayment({
+            await walletApi.verifyPayment({
               order_id: response.razorpay_order_id,
               payment_id: response.razorpay_payment_id,
               signature: response.razorpay_signature,
-              amount: orderData.amount,
+              amount: amount,
             });
-            queryClient.invalidateQueries({ queryKey: ['wallet'] });
-            queryClient.invalidateQueries({ queryKey: ['transactions'] });
-            alert('Payment successful!');
-          } catch (error) {
-            alert('Payment verification failed');
+            
+            toast.success(`₹${amount} added to your wallet!`);
+            onRefresh();
+            setSelectedAmount(null);
+            setCustomAmount('');
+            setActiveTab('balance');
+          } catch (err) {
+            toast.error('Payment verification failed');
           }
+        },
+        modal: {
+          ondismiss: () => setIsProcessing(false),
         },
       };
 
       const razorpay = new window.Razorpay(options);
       razorpay.open();
-    },
-  });
-
-  const handleRecharge = (amount: number) => {
-    createOrderMutation.mutate(amount);
-  };
-
-  const handleCustomRecharge = () => {
-    const amount = parseFloat(rechargeAmount);
-    if (amount > 0) {
-      handleRecharge(amount);
-      setRechargeAmount('');
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to create payment');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Wallet</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
-
-        <div className="p-6 bg-gradient-to-br from-blue-600 to-blue-700">
-          <div className="flex items-center justify-between text-white">
-            <div>
-              <p className="text-sm opacity-90">Total Balance</p>
-              <p className="text-4xl font-bold mt-1">₹{walletData?.wallet.balance.toFixed(2) || '0.00'}</p>
-            </div>
-            <Wallet className="w-16 h-16 opacity-20" />
-          </div>
-          <div className="mt-4 flex items-center space-x-4 text-white text-sm">
-            <div>
-              <span className="opacity-90">Free Minutes:</span>
-              <span className="font-semibold ml-2">{walletData?.wallet.demo_minutes_remaining.toFixed(1) || '0.0'} min</span>
-            </div>
-            <div className="w-px h-4 bg-white opacity-30"></div>
-            <div>
-              <span className="opacity-90">Total Spent:</span>
-              <span className="font-semibold ml-2">₹{walletData?.wallet.total_spent.toFixed(2) || '0.00'}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="border-b border-gray-200">
-          <div className="flex">
-            <button
-              onClick={() => setActiveTab('recharge')}
-              className={`flex-1 px-6 py-3 font-medium transition-colors ${
-                activeTab === 'recharge'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Plus className="w-4 h-4 inline mr-2" />
-              Recharge
-            </button>
-            <button
-              onClick={() => setActiveTab('history')}
-              className={`flex-1 px-6 py-3 font-medium transition-colors ${
-                activeTab === 'history'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <History className="w-4 h-4 inline mr-2" />
-              History
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6 overflow-y-auto max-h-96">
-          {activeTab === 'recharge' ? (
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Recharge</h3>
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                {[100, 500, 1000, 2000].map((amount) => (
-                  <button
-                    key={amount}
-                    onClick={() => handleRecharge(amount)}
-                    className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-4 rounded-lg border border-blue-200 transition-colors"
-                  >
-                    ₹{amount}
-                  </button>
-                ))}
+    <>
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 animate-fade-in" onClick={onClose} />
+      
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 pointer-events-none">
+        <div className="w-full max-w-lg bg-white rounded-xl sm:rounded-2xl shadow-2xl pointer-events-auto animate-scale-in max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-100">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-50 flex items-center justify-center">
+                <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
               </div>
+              <h2 className="text-lg sm:text-xl font-semibold text-slate-800">Wallet</h2>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
+              <X className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />
+            </button>
+          </div>
 
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Custom Amount</h3>
-              <div className="flex space-x-2">
-                <input
-                  type="number"
-                  value={rechargeAmount}
-                  onChange={(e) => setRechargeAmount(e.target.value)}
-                  placeholder="Enter amount"
-                  className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+          {/* Tabs */}
+          <div className="flex border-b border-slate-100">
+            {[
+              { id: 'balance', label: 'Balance', icon: <Wallet className="w-4 h-4" /> },
+              { id: 'recharge', label: 'Add Funds', icon: <Plus className="w-4 h-4" /> },
+              { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabType)}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            {/* Balance Tab */}
+            {activeTab === 'balance' && (
+              <div className="space-y-4 sm:space-y-6">
+                <div className="p-4 sm:p-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl sm:rounded-2xl text-white">
+                  <p className="text-blue-100 text-xs sm:text-sm mb-1">Current Balance</p>
+                  <p className="text-3xl sm:text-4xl font-bold">₹{walletData?.wallet.balance.toFixed(2) || '0.00'}</p>
+                  
+                  {(walletData?.wallet.demo_minutes_remaining || 0) > 0 && (
+                    <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/20">
+                      <p className="text-blue-100 text-xs sm:text-sm">Free Minutes Remaining</p>
+                      <p className="text-xl sm:text-2xl font-semibold">
+                        {walletData?.wallet.demo_minutes_remaining.toFixed(1)} min
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <div className="p-3 sm:p-4 bg-slate-50 rounded-xl">
+                    <p className="text-slate-500 text-xs sm:text-sm">Total Spent</p>
+                    <p className="text-lg sm:text-xl font-semibold text-slate-800">
+                      ₹{walletData?.wallet.total_spent.toFixed(2) || '0.00'}
+                    </p>
+                  </div>
+                  <div className="p-3 sm:p-4 bg-slate-50 rounded-xl">
+                    <p className="text-slate-500 text-xs sm:text-sm">Minutes Billed</p>
+                    <p className="text-lg sm:text-xl font-semibold text-slate-800">
+                      {(walletData?.wallet.total_minutes_used || 0).toFixed(0)} min
+                    </p>
+                  </div>
+                </div>
+
                 <button
-                  onClick={handleCustomRecharge}
-                  disabled={!rechargeAmount || parseFloat(rechargeAmount) <= 0}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
+                  onClick={() => setActiveTab('recharge')}
+                  className="w-full btn btn-primary text-sm sm:text-base"
                 >
-                  <Plus className="w-5 h-5 mr-1" />
-                  Add
+                  <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                  Add Funds
                 </button>
               </div>
-            </div>
-          ) : (
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Transaction History</h3>
-              {transactions && transactions.length > 0 ? (
-                <div className="space-y-3">
-                  {transactions.map((t) => (
-                    <div key={t.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-gray-900 capitalize">{t.type.replace('_', ' ')}</p>
-                        <p className="text-sm text-gray-600 mt-1">{t.description}</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(t.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-lg font-bold ${
-                          t.type === 'recharge' ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {t.type === 'recharge' ? '+' : '-'}₹{t.amount.toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+            )}
+
+            {/* Recharge Tab */}
+            {activeTab === 'recharge' && (
+              <div className="space-y-4 sm:space-y-6">
+                <div>
+                  <p className="text-xs sm:text-sm font-medium text-slate-700 mb-2 sm:mb-3">Select Amount</p>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                    {presetAmounts.map((amount) => (
+                      <button
+                        key={amount}
+                        onClick={() => {
+                          setSelectedAmount(amount);
+                          setCustomAmount('');
+                        }}
+                        className={`p-3 sm:p-4 rounded-xl border-2 transition-all ${
+                          selectedAmount === amount
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-slate-200 hover:border-blue-300 text-slate-700'
+                        }`}
+                      >
+                        <p className="text-xl sm:text-2xl font-bold">₹{amount}</p>
+                        <p className="text-xs sm:text-sm text-slate-500">{amount} minutes</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ) : (
-                <p className="text-center text-gray-500 py-8">No transactions yet</p>
-              )}
-            </div>
-          )}
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200" />
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-white px-3 sm:px-4 text-xs sm:text-sm text-slate-400">or enter custom amount</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-2">
+                    Custom Amount
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm sm:text-base">₹</span>
+                    <input
+                      type="number"
+                      value={customAmount}
+                      onChange={(e) => {
+                        setCustomAmount(e.target.value);
+                        setSelectedAmount(null);
+                      }}
+                      placeholder="Enter amount"
+                      className="input pl-7 sm:pl-8 text-sm sm:text-base"
+                      min="10"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">Minimum ₹10</p>
+                </div>
+
+                <button
+                  onClick={handleRecharge}
+                  disabled={isProcessing || (!selectedAmount && !customAmount)}
+                  className="w-full btn btn-primary text-sm sm:text-base"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                      Pay ₹{selectedAmount || customAmount || 0}
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* History Tab */}
+            {activeTab === 'history' && (
+              <div>
+                {loadingTransactions ? (
+                  <div className="flex items-center justify-center py-8 sm:py-12">
+                    <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500 animate-spin" />
+                  </div>
+                ) : transactions.length === 0 ? (
+                  <div className="text-center py-8 sm:py-12">
+                    <History className="w-10 h-10 sm:w-12 sm:h-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-500 text-sm sm:text-base">No transactions yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 sm:space-y-3">
+                    {Array.isArray(transactions) && transactions.map((tx) => (
+                      <div
+                        key={tx.id}
+                        className="flex items-center justify-between p-3 sm:p-4 bg-slate-50 rounded-xl"
+                      >
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            tx.type === 'recharge' ? 'bg-emerald-100' : 'bg-blue-100'
+                          }`}>
+                            {tx.type === 'recharge' ? (
+                              <ArrowDownRight className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+                            ) : (
+                              <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-800 text-xs sm:text-sm truncate">
+                              {tx.type === 'recharge' ? 'Wallet Recharge' : 'Transcription'}
+                            </p>
+                            <p className="text-xs text-slate-400">{formatDate(tx.created_at)}</p>
+                          </div>
+                        </div>
+                        <p className={`font-semibold text-sm sm:text-base flex-shrink-0 ${
+                          tx.type === 'recharge' ? 'text-emerald-600' : 'text-slate-700'
+                        }`}>
+                          {tx.type === 'recharge' ? '+' : '-'}₹{tx.amount.toFixed(2)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
