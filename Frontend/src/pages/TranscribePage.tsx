@@ -1,10 +1,16 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { useDropzone } from 'react-dropzone';
-import { useAuth } from '../hooks/useAuth';
-import { audioApi, transcriptionApi, walletApi } from '../services/api';
-import type { AudioFile, Transcription, TranscriptionLanguage, WalletDetails } from '../types';
-import { SUPPORTED_FORMATS, MAX_FILE_SIZE, LANGUAGE_OPTIONS } from '../types';
-import toast from 'react-hot-toast';
+import { useState, useCallback, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useDropzone } from "react-dropzone";
+import { useAuth } from "../hooks/useAuth";
+import { audioApi, transcriptionApi, walletApi } from "../services/api";
+import type {
+  AudioFile,
+  Transcription,
+  TranscriptionLanguage,
+  WalletDetails,
+} from "../types";
+import { SUPPORTED_FORMATS, MAX_FILE_SIZE, LANGUAGE_OPTIONS } from "../types";
+import toast from "react-hot-toast";
 import {
   Music,
   Upload,
@@ -24,31 +30,33 @@ import {
   RefreshCw,
   History,
   CreditCard,
-} from 'lucide-react';
+} from "lucide-react";
 
 // Sub-components
-import WalletModal from '../components/WalletModal';
-import HistoryModal from '../components/HistoryModal';
+import WalletModal from "../components/WalletModal";
+import HistoryModal from "../components/HistoryModal";
 
-type AppState = 'idle' | 'uploaded' | 'processing' | 'completed' | 'error';
+type AppState = "idle" | "uploaded" | "processing" | "completed" | "error";
 
 export default function TranscribePage() {
   const { user, logout, refreshUser } = useAuth();
-  
+
   // State
-  const [appState, setAppState] = useState<AppState>('idle');
+  const [appState, setAppState] = useState<AppState>("idle");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<AudioFile | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [language, setLanguage] = useState<TranscriptionLanguage>('auto');
-  const [transcription, setTranscription] = useState<Transcription | null>(null);
+  const [language, setLanguage] = useState<TranscriptionLanguage>("auto");
+  const [transcription, setTranscription] = useState<Transcription | null>(
+    null
+  );
   const [estimatedCost, setEstimatedCost] = useState(0);
   const [hasSufficientBalance, setHasSufficientBalance] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [walletData, setWalletData] = useState<WalletDetails | null>(null);
-  
+
   // Modals
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -62,7 +70,7 @@ export default function TranscribePage() {
         const data = await walletApi.getDetails();
         setWalletData(data);
       } catch (err) {
-        console.error('Failed to fetch wallet:', err);
+        console.error("Failed to fetch wallet:", err);
       }
     };
     fetchWallet();
@@ -71,77 +79,88 @@ export default function TranscribePage() {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setShowDropdown(false);
       }
     };
 
     if (showDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [showDropdown]);
 
   // File validation
   const validateFile = useCallback((file: File): string | null => {
-    const extension = file.name.split('.').pop()?.toLowerCase();
+    const extension = file.name.split(".").pop()?.toLowerCase();
     if (!extension || !SUPPORTED_FORMATS.includes(extension as any)) {
-      return `Unsupported format. Please use: ${SUPPORTED_FORMATS.join(', ')}`;
+      return `Unsupported format. Please use: ${SUPPORTED_FORMATS.join(", ")}`;
     }
     if (file.size > MAX_FILE_SIZE) {
-      return 'File size exceeds 100MB limit';
+      return "File size exceeds 100MB limit";
     }
     return null;
   }, []);
 
   // Handle file selection
-  const handleFileSelect = useCallback(async (file: File) => {
-    const validationError = validateFile(file);
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
+  const handleFileSelect = useCallback(
+    async (file: File) => {
+      const validationError = validateFile(file);
+      if (validationError) {
+        toast.error(validationError);
+        return;
+      }
 
-    setSelectedFile(file);
-    setError(null);
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    try {
-      const response = await audioApi.upload(file, (progress) => {
-        setUploadProgress(progress);
-      });
-
-      setAudioFile(response.audio_file);
-      setEstimatedCost(response.estimated_cost);
-      setHasSufficientBalance(response.has_sufficient_balance);
-      setAppState('uploaded');
-      toast.success('File uploaded successfully!');
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.error || 'Upload failed. Please try again.';
-      setError(errorMessage);
-      toast.error(errorMessage);
-      setAppState('error');
-    } finally {
-      setIsUploading(false);
+      setSelectedFile(file);
+      setError(null);
+      setIsUploading(true);
       setUploadProgress(0);
-    }
-  }, [validateFile]);
+
+      try {
+        const response = await audioApi.upload(file, (progress) => {
+          setUploadProgress(progress);
+        });
+
+        setAudioFile(response.audio_file);
+        setEstimatedCost(response.estimated_cost);
+        setHasSufficientBalance(response.has_sufficient_balance);
+        setAppState("uploaded");
+        toast.success("File uploaded successfully!");
+      } catch (err: any) {
+        const errorMessage =
+          err.response?.data?.error || "Upload failed. Please try again.";
+        setError(errorMessage);
+        toast.error(errorMessage);
+        setAppState("error");
+      } finally {
+        setIsUploading(false);
+        setUploadProgress(0);
+      }
+    },
+    [validateFile]
+  );
 
   // Dropzone setup
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) {
-      handleFileSelect(acceptedFiles[0]);
-    }
-  }, [handleFileSelect]);
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles.length > 0) {
+        handleFileSelect(acceptedFiles[0]);
+      }
+    },
+    [handleFileSelect]
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'audio/*': SUPPORTED_FORMATS.map(f => `.${f}`),
+      "audio/*": SUPPORTED_FORMATS.map((f) => `.${f}`),
     },
     maxFiles: 1,
-    disabled: isUploading || appState === 'processing',
+    disabled: isUploading || appState === "processing",
   });
 
   // Start transcription
@@ -153,30 +172,31 @@ export default function TranscribePage() {
       return;
     }
 
-    setAppState('processing');
+    setAppState("processing");
     setError(null);
 
     try {
       const result = await transcriptionApi.create(audioFile.id, language);
-      
+
       // Poll for completion if status is processing
-      if (result.status === 'processing' || result.status === 'pending') {
+      if (result.status === "processing" || result.status === "pending") {
         pollTranscriptionStatus(result.id);
-      } else if (result.status === 'completed') {
+      } else if (result.status === "completed") {
         setTranscription(result);
-        setAppState('completed');
+        setAppState("completed");
         refreshUser();
         refreshWallet();
-        toast.success('Transcription completed!');
-      } else if (result.status === 'failed') {
-        setError(result.error_message || 'Transcription failed');
-        setAppState('error');
-        toast.error('Transcription failed');
+        toast.success("Transcription completed!");
+      } else if (result.status === "failed") {
+        setError(result.error_message || "Transcription failed");
+        setAppState("error");
+        toast.error("Transcription failed");
       }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || 'Transcription failed. Please try again.';
+      const errorMessage =
+        err.response?.data?.error || "Transcription failed. Please try again.";
       setError(errorMessage);
-      setAppState('error');
+      setAppState("error");
       toast.error(errorMessage);
     }
   };
@@ -189,27 +209,27 @@ export default function TranscribePage() {
     const poll = async () => {
       try {
         const result = await transcriptionApi.get(id);
-        
-        if (result.status === 'completed') {
+
+        if (result.status === "completed") {
           setTranscription(result);
-          setAppState('completed');
+          setAppState("completed");
           refreshUser();
           refreshWallet();
-          toast.success('Transcription completed!');
-        } else if (result.status === 'failed') {
-          setError(result.error_message || 'Transcription failed');
-          setAppState('error');
-          toast.error('Transcription failed');
+          toast.success("Transcription completed!");
+        } else if (result.status === "failed") {
+          setError(result.error_message || "Transcription failed");
+          setAppState("error");
+          toast.error("Transcription failed");
         } else if (attempts < maxAttempts) {
           attempts++;
           setTimeout(poll, 5000);
         } else {
-          setError('Transcription timed out. Please try again.');
-          setAppState('error');
+          setError("Transcription timed out. Please try again.");
+          setAppState("error");
         }
       } catch (err) {
-        setError('Failed to check transcription status');
-        setAppState('error');
+        setError("Failed to check transcription status");
+        setAppState("error");
       }
     };
 
@@ -222,21 +242,21 @@ export default function TranscribePage() {
       const data = await walletApi.getDetails();
       setWalletData(data);
     } catch (err) {
-      console.error('Failed to refresh wallet:', err);
+      console.error("Failed to refresh wallet:", err);
     }
   };
 
   // Copy to clipboard
   const handleCopy = async () => {
     if (!transcription?.text) return;
-    
+
     try {
       await navigator.clipboard.writeText(transcription.text);
       setCopied(true);
-      toast.success('Copied to clipboard!');
+      toast.success("Copied to clipboard!");
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      toast.error('Failed to copy');
+      toast.error("Failed to copy");
     }
   };
 
@@ -247,22 +267,22 @@ export default function TranscribePage() {
     try {
       const blob = await transcriptionApi.download(transcription.id);
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `transcription_${transcription.id}.txt`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      toast.success('Download started!');
+      toast.success("Download started!");
     } catch (err) {
-      toast.error('Download failed');
+      toast.error("Download failed");
     }
   };
 
   // Reset to initial state
   const handleReset = () => {
-    setAppState('idle');
+    setAppState("idle");
     setSelectedFile(null);
     setAudioFile(null);
     setTranscription(null);
@@ -275,7 +295,7 @@ export default function TranscribePage() {
   const formatDuration = (minutes: number): string => {
     const mins = Math.floor(minutes);
     const secs = Math.round((minutes - mins) * 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   // Format file size
@@ -296,7 +316,9 @@ export default function TranscribePage() {
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-md">
                 <Music className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-semibold text-slate-800">AudioScribe</span>
+              <span className="text-xl font-semibold text-slate-800">
+                AudioScribe
+              </span>
             </div>
 
             {/* Right Side */}
@@ -308,11 +330,12 @@ export default function TranscribePage() {
               >
                 <Wallet className="w-4 h-4 text-blue-500" />
                 <span className="font-medium text-slate-700">
-                  ₹{walletData?.wallet.balance.toFixed(2) || '0.00'}
+                  ₹{walletData?.wallet.balance.toFixed(2) || "0.00"}
                 </span>
                 {(walletData?.wallet.demo_minutes_remaining || 0) > 0 && (
                   <span className="badge badge-blue text-xs">
-                    {walletData?.wallet.demo_minutes_remaining.toFixed(0)} free min
+                    {walletData?.wallet.demo_minutes_remaining.toFixed(0)} free
+                    min
                   </span>
                 )}
               </button>
@@ -333,7 +356,7 @@ export default function TranscribePage() {
                   className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all"
                 >
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center text-white font-medium text-sm">
-                    {user?.name?.charAt(0).toUpperCase() || 'U'}
+                    {user?.name?.charAt(0).toUpperCase() || "U"}
                   </div>
                   <span className="hidden sm:block text-sm font-medium text-slate-700 max-w-[100px] truncate">
                     {user?.name}
@@ -343,11 +366,18 @@ export default function TranscribePage() {
 
                 {showDropdown && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowDropdown(false)}
+                    />
                     <div className="absolute right-0 mt-2 w-56 py-2 bg-white rounded-xl shadow-lg border border-slate-100 z-50 animate-scale-in">
                       <div className="px-4 py-2 border-b border-slate-100">
-                        <p className="text-sm font-medium text-slate-800">{user?.name}</p>
-                        <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+                        <p className="text-sm font-medium text-slate-800">
+                          {user?.name}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate">
+                          {user?.email}
+                        </p>
                       </div>
                       <button
                         onClick={() => {
@@ -395,9 +425,7 @@ export default function TranscribePage() {
         <div className="max-w-4xl mx-auto">
           {/* Title */}
           <div className="text-center mb-8 md:mb-12">
-            <h1 className="heading-lg text-slate-900 mb-2">
-              Audio to Text
-            </h1>
+            <h1 className="heading-lg text-slate-900 mb-2">Audio to Text</h1>
             <p className="text-lg text-slate-500 font-light">
               Upload your audio file and get accurate transcription in seconds
             </p>
@@ -406,15 +434,19 @@ export default function TranscribePage() {
           {/* Main Card */}
           <div className="card-elevated p-6 md:p-8">
             {/* Upload Zone - Idle State */}
-            {appState === 'idle' && (
+            {appState === "idle" && (
               <div
                 {...getRootProps()}
                 className={`dropzone p-8 md:p-12 ${
-                  isDragActive ? 'dropzone-active' : ''
-                } ${isUploading ? 'pointer-events-none opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                  isDragActive ? "dropzone-active" : ""
+                } ${
+                  isUploading
+                    ? "pointer-events-none opacity-70 cursor-not-allowed"
+                    : "cursor-pointer"
+                }`}
               >
                 <input {...getInputProps()} />
-                
+
                 <div className="text-center">
                   <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-blue-50 flex items-center justify-center">
                     {isUploading ? (
@@ -423,35 +455,42 @@ export default function TranscribePage() {
                       <Upload className="w-10 h-10 text-blue-500" />
                     )}
                   </div>
-                  
+
                   {isUploading ? (
                     <>
                       <p className="text-lg font-medium text-slate-700 mb-2">
                         Uploading...
                       </p>
                       <div className="w-full max-w-xs mx-auto progress-bar">
-                        <div 
+                        <div
                           className="progress-bar-fill"
                           style={{ width: `${uploadProgress}%` }}
                         />
                       </div>
-                      <p className="text-sm text-slate-400 mt-2">{uploadProgress}%</p>
+                      <p className="text-sm text-slate-400 mt-2">
+                        {uploadProgress}%
+                      </p>
                     </>
                   ) : (
                     <>
                       <p className="text-lg font-medium text-slate-700 mb-2">
-                        {isDragActive ? 'Drop your file here' : 'Drag & drop your audio file'}
+                        {isDragActive
+                          ? "Drop your file here"
+                          : "Drag & drop your audio file"}
                       </p>
-                      <p className="text-slate-400 mb-4">
-                        or click to browse
-                      </p>
+                      <p className="text-slate-400 mb-4">or click to browse</p>
                       <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-400">
-                        {SUPPORTED_FORMATS.map(format => (
-                          <span key={format} className="px-2 py-1 bg-slate-100 rounded-md uppercase">
+                        {SUPPORTED_FORMATS.map((format) => (
+                          <span
+                            key={format}
+                            className="px-2 py-1 bg-slate-100 rounded-md uppercase"
+                          >
                             {format}
                           </span>
                         ))}
-                        <span className="px-2 py-1 bg-slate-100 rounded-md">Max 100MB</span>
+                        <span className="px-2 py-1 bg-slate-100 rounded-md">
+                          Max 100MB
+                        </span>
                       </div>
                     </>
                   )}
@@ -460,7 +499,7 @@ export default function TranscribePage() {
             )}
 
             {/* Uploaded State */}
-            {appState === 'uploaded' && audioFile && (
+            {appState === "uploaded" && audioFile && (
               <div className="space-y-6">
                 {/* File Info */}
                 <div className="flex items-start gap-4 p-4 bg-slate-50 rounded-xl">
@@ -468,7 +507,9 @@ export default function TranscribePage() {
                     <FileAudio className="w-6 h-6 text-blue-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-slate-800 truncate">{audioFile.filename}</p>
+                    <p className="font-medium text-slate-800 truncate">
+                      {audioFile.filename}
+                    </p>
                     <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-slate-500">
                       <span className="flex items-center gap-1">
                         <Clock className="w-4 h-4" />
@@ -494,10 +535,12 @@ export default function TranscribePage() {
                   </label>
                   <select
                     value={language}
-                    onChange={(e) => setLanguage(e.target.value as TranscriptionLanguage)}
+                    onChange={(e) =>
+                      setLanguage(e.target.value as TranscriptionLanguage)
+                    }
                     className="input"
                   >
-                    {LANGUAGE_OPTIONS.map(option => (
+                    {LANGUAGE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -508,7 +551,9 @@ export default function TranscribePage() {
                 {/* Cost Estimate */}
                 <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl border border-blue-100">
                   <div>
-                    <p className="text-sm text-blue-600 font-medium">Estimated Cost</p>
+                    <p className="text-sm text-blue-600 font-medium">
+                      Estimated Cost
+                    </p>
                     <p className="text-2xl font-bold text-blue-700">
                       ₹{estimatedCost.toFixed(2)}
                     </p>
@@ -516,7 +561,9 @@ export default function TranscribePage() {
                   {!hasSufficientBalance && (
                     <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-4 py-2 rounded-lg">
                       <AlertCircle className="w-5 h-5" />
-                      <span className="text-sm font-medium">Insufficient balance</span>
+                      <span className="text-sm font-medium">
+                        Insufficient balance
+                      </span>
                     </div>
                   )}
                 </div>
@@ -528,12 +575,11 @@ export default function TranscribePage() {
                     className="btn btn-primary flex-1"
                   >
                     <Sparkles className="w-5 h-5" />
-                    {hasSufficientBalance ? 'Start Transcription' : 'Add Funds & Transcribe'}
+                    {hasSufficientBalance
+                      ? "Start Transcription"
+                      : "Add Funds & Transcribe"}
                   </button>
-                  <button
-                    onClick={handleReset}
-                    className="btn btn-outline"
-                  >
+                  <button onClick={handleReset} className="btn btn-outline">
                     Cancel
                   </button>
                 </div>
@@ -541,7 +587,7 @@ export default function TranscribePage() {
             )}
 
             {/* Processing State */}
-            {appState === 'processing' && (
+            {appState === "processing" && (
               <div className="py-12 text-center">
                 <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-blue-50 flex items-center justify-center processing-glow">
                   <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
@@ -550,9 +596,10 @@ export default function TranscribePage() {
                   Transcribing your audio...
                 </h3>
                 <p className="text-slate-500 mb-6">
-                  This usually takes a few seconds to a minute depending on file length
+                  This usually takes a few seconds to a minute depending on file
+                  length
                 </p>
-                
+
                 {/* Animated Waveform */}
                 <div className="flex items-center justify-center gap-1 h-12">
                   {[...Array(20)].map((_, i) => (
@@ -570,7 +617,7 @@ export default function TranscribePage() {
             )}
 
             {/* Completed State */}
-            {appState === 'completed' && transcription && (
+            {appState === "completed" && transcription && (
               <div className="space-y-6">
                 {/* Success Header */}
                 <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
@@ -578,9 +625,12 @@ export default function TranscribePage() {
                     <Check className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-emerald-800">Transcription Complete!</p>
+                    <p className="font-medium text-emerald-800">
+                      Transcription Complete!
+                    </p>
                     <p className="text-sm text-emerald-600">
-                      {transcription.duration.toFixed(1)} minutes • Cost: ₹{transcription.cost.toFixed(2)}
+                      {transcription.duration.toFixed(1)} minutes • Cost: ₹
+                      {transcription.cost.toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -607,10 +657,11 @@ export default function TranscribePage() {
                       <Download className="w-4 h-4" />
                     </button>
                   </div>
-                  
+
                   <div className="p-6 bg-slate-50 rounded-xl border border-slate-100 max-h-[400px] overflow-y-auto">
                     <p className="transcription-text pr-20">
-                      {transcription.text || 'No text was detected in the audio.'}
+                      {transcription.text ||
+                        "No text was detected in the audio."}
                     </p>
                   </div>
                 </div>
@@ -636,7 +687,7 @@ export default function TranscribePage() {
             )}
 
             {/* Error State */}
-            {appState === 'error' && (
+            {appState === "error" && (
               <div className="py-12 text-center">
                 <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-red-50 flex items-center justify-center">
                   <AlertCircle className="w-10 h-10 text-red-500" />
@@ -645,12 +696,9 @@ export default function TranscribePage() {
                   Something went wrong
                 </h3>
                 <p className="text-slate-500 mb-6 max-w-md mx-auto">
-                  {error || 'An unexpected error occurred. Please try again.'}
+                  {error || "An unexpected error occurred. Please try again."}
                 </p>
-                <button
-                  onClick={handleReset}
-                  className="btn btn-primary"
-                >
+                <button onClick={handleReset} className="btn btn-primary">
                   <RefreshCw className="w-5 h-5" />
                   Try Again
                 </button>
@@ -659,28 +707,40 @@ export default function TranscribePage() {
           </div>
 
           {/* Info Cards */}
-          {appState === 'idle' && (
+          {appState === "idle" && (
             <div className="grid sm:grid-cols-3 gap-4 mt-8">
               <div className="card p-5 text-center">
                 <div className="w-10 h-10 mx-auto mb-3 rounded-xl bg-blue-50 flex items-center justify-center">
                   <FileAudio className="w-5 h-5 text-blue-500" />
                 </div>
-                <p className="text-sm font-medium text-slate-700">Multiple Formats</p>
-                <p className="text-xs text-slate-400 mt-1">MP3, WAV, M4A, FLAC, OGG</p>
+                <p className="text-sm font-medium text-slate-700">
+                  Multiple Formats
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  MP3, WAV, M4A, FLAC, OGG
+                </p>
               </div>
               <div className="card p-5 text-center">
                 <div className="w-10 h-10 mx-auto mb-3 rounded-xl bg-emerald-50 flex items-center justify-center">
                   <Clock className="w-5 h-5 text-emerald-500" />
                 </div>
-                <p className="text-sm font-medium text-slate-700">Up to 1 Hour</p>
-                <p className="text-xs text-slate-400 mt-1">Max 60 minutes per file</p>
+                <p className="text-sm font-medium text-slate-700">
+                  Up to 1 Hour
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Max 60 minutes per file
+                </p>
               </div>
               <div className="card p-5 text-center">
                 <div className="w-10 h-10 mx-auto mb-3 rounded-xl bg-amber-50 flex items-center justify-center">
                   <Wallet className="w-5 h-5 text-amber-500" />
                 </div>
-                <p className="text-sm font-medium text-slate-700">₹1 per Minute</p>
-                <p className="text-xs text-slate-400 mt-1">Pay only for what you use</p>
+                <p className="text-sm font-medium text-slate-700">
+                  ₹1 per Minute
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Pay only for what you use
+                </p>
               </div>
             </div>
           )}
@@ -694,11 +754,50 @@ export default function TranscribePage() {
         walletData={walletData}
         onRefresh={refreshWallet}
       />
-      
+
       <HistoryModal
         isOpen={showHistoryModal}
         onClose={() => setShowHistoryModal(false)}
       />
+
+      {/* Footer */}
+      <footer className="py-8 px-4 sm:px-6 lg:px-8 border-t border-slate-100 bg-white/80 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                <Music className="w-4 h-4 text-white" />
+              </div>
+              <span className="font-medium text-slate-700">AudioScribe</span>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-6 text-sm">
+              <Link
+                to="/privacy"
+                className="text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                Privacy Policy
+              </Link>
+              <Link
+                to="/terms"
+                className="text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                Terms of Service
+              </Link>
+              <Link
+                to="/contact"
+                className="text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                Contact Us
+              </Link>
+            </div>
+
+            <p className="text-sm text-slate-400">
+              © 2025 AudioScribe. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

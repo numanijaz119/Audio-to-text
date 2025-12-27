@@ -14,6 +14,9 @@ urlpatterns = [
     path('auth/facebook/login/', views.facebook_login, name='facebook-login'),
     path('auth/user/', views.get_current_user, name='current-user'),
     
+    # Contact form
+    path('contact/', views.contact_form, name='contact-form'),
+    
     # Health check
     path('health/', views.health_check, name='health-check'),
     

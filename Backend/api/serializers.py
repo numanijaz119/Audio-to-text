@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Wallet, Transaction, AudioFile, Transcription
+from .models import User, Wallet, Transaction, AudioFile, Transcription, ContactMessage
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -68,3 +68,35 @@ class TranscriptionSerializer(serializers.ModelSerializer):
 class TranscriptionCreateSerializer(serializers.Serializer):
     audio_file_id = serializers.UUIDField()
     language = serializers.ChoiceField(choices=['auto', 'english', 'hindi'])
+
+
+class ContactMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactMessage
+        fields = ['id', 'name', 'email', 'subject', 'message', 'status', 'created_at']
+        read_only_fields = ['id', 'status', 'created_at']
+    
+    def validate_email(self, value):
+        """Validate email format"""
+        if not value or '@' not in value:
+            raise serializers.ValidationError("Please provide a valid email address.")
+        return value
+    
+    def validate_message(self, value):
+        """Validate message length"""
+        if len(value.strip()) < 10:
+            raise serializers.ValidationError("Message must be at least 10 characters long.")
+        return value.strip()
+    
+    def validate_name(self, value):
+        """Validate name"""
+        if len(value.strip()) < 2:
+            raise serializers.ValidationError("Name must be at least 2 characters long.")
+        return value.strip()
+    
+    def validate_subject(self, value):
+        """Validate subject is in allowed choices"""
+        valid_subjects = ['general', 'technical', 'billing', 'feature', 'bug', 'other']
+        if value not in valid_subjects:
+            raise serializers.ValidationError(f"Invalid subject. Must be one of: {', '.join(valid_subjects)}")
+        return value

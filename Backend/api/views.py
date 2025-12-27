@@ -8,15 +8,17 @@ from django.db.models import Q
 from django.db import connection
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from django_ratelimit.decorators import ratelimit
 from datetime import datetime
 import csv
 import json
 
-from .models import User, Wallet, Transaction, AudioFile, Transcription
+from .models import User, Wallet, Transaction, AudioFile, Transcription, ContactMessage
 from .serializers import (
     UserSerializer, WalletSerializer, TransactionSerializer,
-    AudioFileSerializer, TranscriptionSerializer, TranscriptionCreateSerializer
+    AudioFileSerializer, TranscriptionSerializer, TranscriptionCreateSerializer,
+    ContactMessageSerializer
 )
 from .services import (
     AuthService, WalletService, AudioService,
@@ -478,4 +480,86 @@ def health_check(request):
     
     status_code = 200 if health_status['status'] == 'healthy' else 503
     return JsonResponse(health_status, status=status_code)
+
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@ratelimit(key='ip', rate='10/h')
+def contact_form(request):
+    """
+    Handle contact form submissions - Rate limited to 10 per hour per IP
+    Sends email notification to admin only
+    """
+    import logging
+    logger = logging.getLogger('api')
+    
+    try:
+        serializer = ContactMessageSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.error(f"Contact form validation failed: {serializer.errors}")
+            return Response(
+                {'error': 'Invalid form data', 'details': serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Save contact message
+        contact_message = serializer.save()
+        logger.info(f"Contact form submitted - ID: {contact_message.id}, Email: {contact_message.email}")
+        
+        # Send email notification to admin (if email is configured)
+        try:
+            from django.core.mail import send_mail
+            from django.template.loader import render_to_string
+            from django.conf import settings
+            
+            # Check if email is configured
+            if hasattr(settings, 'EMAIL_HOST') and settings.EMAIL_HOST:
+                # Prepare email context
+                frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+                admin_email = getattr(settings, 'ADMIN_EMAIL', 'admin@audioscribe.com')
+                from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@audioscribe.com')
+                
+                # Admin notification email context
+                admin_context = {
+                    'contact': contact_message,
+                    'frontend_url': frontend_url,
+                }
+                
+                # Send admin notification email
+                try:
+                    admin_subject = f"New Contact Form Submission - {contact_message.get_subject_display()}"
+                    admin_html_message = render_to_string('emails/contact_admin_notification.html', admin_context)
+                    admin_plain_message = render_to_string('emails/contact_admin_notification.txt', admin_context)
+                    
+                    send_mail(
+                        subject=admin_subject,
+                        message=admin_plain_message,
+                        html_message=admin_html_message,
+                        from_email=from_email,
+                        recipient_list=[admin_email],
+                        fail_silently=False,
+                    )
+                    logger.info(f"Admin notification email sent for contact ID: {contact_message.id}")
+                except Exception as admin_email_error:
+                    logger.error(f"Failed to send admin notification email: {str(admin_email_error)}")
+                
+            else:
+                logger.warning("Email not configured - contact form submitted but no email sent")
+        
+        except Exception as email_error:
+            # Log email error but don't fail the request
+            logger.error(f"Failed to send contact form email: {str(email_error)}")
+        
+        return Response({
+            'message': 'Thank you for your message. We will get back to you within 24 hours.',
+            'id': str(contact_message.id)
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        logger.exception(f"Error processing contact form")
+        return Response(
+            {'error': 'Failed to submit contact form. Please try again.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
