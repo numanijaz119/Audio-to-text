@@ -1,0 +1,51 @@
+SECRET_KEY=django-insecure-dev-key-change-in-production
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+
+# Database
+DB_ENGINE=django.db.backends.postgresql
+DB_NAME=
+DB_USER=postgres
+DB_PASSWORD= 
+DB_HOST=localhost
+DB_PORT=5432
+
+
+# OAuth (Add your credentials)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+FACEBOOK_APP_ID=
+FACEBOOK_APP_SECRET=
+
+ASSEMBLY_AI_KEYS=7240d2517cd1448796ad30444893256f
+
+# OpenAI (Add your key)
+OPENAI_API_KEY=
+
+# Razorpay (Add your keys)
+RAZORPAY_KEY_ID=rzp_test_RvlpzqC14j5dLO
+RAZORPAY_KEY_SECRET=Ud1tJpSntq40YoCOjJM81s6w
+
+# Frontend URL
+FRONTEND_URL=http://localhost:5173
+
+# Media Storage
+MEDIA_ROOT=media
+MEDIA_URL=/media/
+
+# gmail smtp configured
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER= #host emial.
+EMAIL_HOST_PASSWORD= #get app password
+DEFAULT_FROM_EMAIL= # just put the emial configured above
+
+# Support Configuration
+ADMIN_EMAIL=#where you receieve form emials
+
+
+# Rate Limiting
+RATELIMIT_ENABLE=True

@@ -189,3 +189,43 @@ class Transcription(models.Model):
     
     def __str__(self):
         return f"Transcription {self.id} - {self.status}"
+
+
+class ContactMessage(models.Model):
+    SUBJECT_CHOICES = [
+        ('general', 'General Inquiry'),
+        ('technical', 'Technical Support'),
+        ('billing', 'Billing & Payments'),
+        ('feature', 'Feature Request'),
+        ('bug', 'Bug Report'),
+        ('other', 'Other'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('new', 'New'),
+        ('in_progress', 'In Progress'),
+        ('resolved', 'Resolved'),
+        ('closed', 'Closed'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    email = models.EmailField()
+    subject = models.CharField(max_length=20, choices=SUBJECT_CHOICES)
+    message = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='new')
+    admin_notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'contact_messages'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['email']),
+            models.Index(fields=['subject']),
+        ]
+    
+    def __str__(self):
+        return f"Contact from {self.name} - {self.subject}"

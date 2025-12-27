@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import User, Wallet, Transaction, AudioFile, Transcription
+from .models import User, Wallet, Transaction, AudioFile, Transcription, ContactMessage
 
 
 @admin.register(User)
@@ -39,3 +39,33 @@ class TranscriptionAdmin(admin.ModelAdmin):
     list_filter = ['status', 'language', 'created_at']
     search_fields = ['user__email', 'audio_file__filename']
     readonly_fields = ['id', 'created_at', 'completed_at']
+
+
+@admin.register(ContactMessage)
+class ContactMessageAdmin(admin.ModelAdmin):
+    list_display = ['name', 'email', 'subject', 'status', 'created_at']
+    list_filter = ['subject', 'status', 'created_at']
+    search_fields = ['name', 'email', 'message']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Contact Information', {
+            'fields': ('name', 'email', 'subject')
+        }),
+        ('Message', {
+            'fields': ('message',)
+        }),
+        ('Status & Notes', {
+            'fields': ('status', 'admin_notes')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_readonly_fields(self, request, obj=None):
+        # Make contact info readonly after creation
+        if obj:  # editing an existing object
+            return self.readonly_fields + ('name', 'email', 'subject', 'message')
+        return self.readonly_fields
