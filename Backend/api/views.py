@@ -24,6 +24,7 @@ from .services import (
     AuthService, WalletService, AudioService,
     TranscriptionService, PaymentService
 )
+from .utils.cookie_auth import set_auth_cookies, clear_auth_cookies
 
 
 @api_view(['POST'])
@@ -46,11 +47,15 @@ def google_login(request):
         
         user_data = UserSerializer(result['user']).data
         
-        return Response({
+        response = Response({
             'user': user_data,
-            'tokens': result['tokens'],
             'is_new_user': result['is_new_user']
         })
+        
+        # Set tokens in httpOnly cookies
+        set_auth_cookies(response, result['tokens'])
+        
+        return response
     except Exception as e:
         return Response(
             {'error': str(e)},
@@ -78,11 +83,15 @@ def facebook_login(request):
         
         user_data = UserSerializer(result['user']).data
         
-        return Response({
+        response = Response({
             'user': user_data,
-            'tokens': result['tokens'],
             'is_new_user': result['is_new_user']
         })
+        
+        # Set tokens in httpOnly cookies
+        set_auth_cookies(response, result['tokens'])
+        
+        return response
     except Exception as e:
         return Response(
             {'error': str(e)},
@@ -96,6 +105,54 @@ def get_current_user(request):
     """Get current authenticated user"""
     serializer = UserSerializer(request.user)
     return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def logout(request):
+    """Logout user by clearing auth cookies"""
+    response = Response({'message': 'Logged out successfully'})
+    clear_auth_cookies(response)
+    return response
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def refresh_token(request):
+    """Refresh access token using refresh token from cookie"""
+    from rest_framework_simplejwt.tokens import RefreshToken
+    from rest_framework_simplejwt.exceptions import TokenError
+    
+    try:
+        refresh_token_value = request.COOKIES.get('refresh_token')
+        
+        if not refresh_token_value:
+            return Response(
+                {'error': 'Refresh token not found'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        refresh = RefreshToken(refresh_token_value)
+        access_token = str(refresh.access_token)
+        
+        response = Response({'message': 'Token refreshed successfully'})
+        
+        # Set new access token in cookie
+        set_auth_cookies(response, {'access': access_token})
+        
+        return response
+    except TokenError as e:
+        response = Response(
+            {'error': 'Invalid or expired refresh token'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+        clear_auth_cookies(response)
+        return response
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 class WalletViewSet(viewsets.ReadOnlyModelViewSet):

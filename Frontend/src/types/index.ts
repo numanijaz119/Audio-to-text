@@ -3,7 +3,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  provider: 'google' | 'facebook';
+  provider: "google" | "facebook";
   demo_minutes_remaining: number;
   wallet_balance: number;
   created_at: string;
@@ -33,7 +33,7 @@ export interface WalletDetails {
 // Transaction Types
 export interface Transaction {
   id: string;
-  type: 'recharge' | 'debit' | 'demo_credit';
+  type: "recharge" | "debit" | "demo_credit";
   amount: number;
   balance_before: number;
   balance_after: number;
@@ -59,8 +59,12 @@ export interface AudioUploadResponse {
 }
 
 // Transcription Types
-export type TranscriptionStatus = 'pending' | 'processing' | 'completed' | 'failed';
-export type TranscriptionLanguage = 'auto' | 'english' | 'hindi';
+export type TranscriptionStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed";
+export type TranscriptionLanguage = "auto" | "english" | "hindi";
 
 export interface Transcription {
   id: string;
@@ -82,14 +86,8 @@ export interface TranscriptionCreateRequest {
 }
 
 // Auth Types
-export interface AuthTokens {
-  access: string;
-  refresh: string;
-}
-
 export interface LoginResponse {
   user: User;
-  tokens: AuthTokens;
   is_new_user: boolean;
 }
 
@@ -144,30 +142,33 @@ export interface TranscriptionState {
 }
 
 // Supported Formats
-export const SUPPORTED_FORMATS = ['mp3', 'wav', 'm4a', 'flac', 'ogg'] as const;
-export type SupportedFormat = typeof SUPPORTED_FORMATS[number];
+export const SUPPORTED_FORMATS = ["mp3", "wav", "m4a", "flac", "ogg"] as const;
+export type SupportedFormat = (typeof SUPPORTED_FORMATS)[number];
 
 export const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 export const MAX_DURATION_MINUTES = 60;
 
 // Language Options
-export const LANGUAGE_OPTIONS: { value: TranscriptionLanguage; label: string }[] = [
-  { value: 'auto', label: 'Auto Detect' },
-  { value: 'english', label: 'English' },
-  { value: 'hindi', label: 'Hindi' },
+export const LANGUAGE_OPTIONS: {
+  value: TranscriptionLanguage;
+  label: string;
+}[] = [
+  { value: "auto", label: "Auto Detect" },
+  { value: "english", label: "English" },
+  { value: "hindi", label: "Hindi" },
 ];
 
 // Status Labels
 export const STATUS_LABELS: Record<TranscriptionStatus, string> = {
-  pending: 'Pending',
-  processing: 'Processing',
-  completed: 'Completed',
-  failed: 'Failed',
+  pending: "Pending",
+  processing: "Processing",
+  completed: "Completed",
+  failed: "Failed",
 };
 
 export const STATUS_COLORS: Record<TranscriptionStatus, string> = {
-  pending: 'yellow',
-  processing: 'blue',
-  completed: 'green',
-  failed: 'red',
+  pending: "yellow",
+  processing: "blue",
+  completed: "green",
+  failed: "red",
 };

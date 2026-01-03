@@ -13,6 +13,8 @@ urlpatterns = [
     path('auth/google/login/', views.google_login, name='google-login'),
     path('auth/facebook/login/', views.facebook_login, name='facebook-login'),
     path('auth/user/', views.get_current_user, name='current-user'),
+    path('auth/logout/', views.logout, name='logout'),
+    path('auth/refresh/', views.refresh_token, name='refresh-token'),
     
     # Contact form
     path('contact/', views.contact_form, name='contact-form'),

@@ -23,17 +23,13 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true, // Enable sending cookies with requests
 });
 
-// Request interceptor for adding auth token
+// Request interceptor - no longer needed to add token manually
+// Cookies are sent automatically with withCredentials: true
 api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
+  (config) => config,
   (error) => Promise.reject(error)
 );
 
@@ -47,24 +43,28 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
+      // Don't try to refresh if the failing request was already a refresh or initial auth check
+      if (
+        originalRequest.url?.includes("/auth/refresh/") ||
+        originalRequest.url?.includes("/auth/user/")
+      ) {
+        return Promise.reject(error);
+      }
+
       try {
-        const refreshToken = localStorage.getItem("refresh_token");
-        if (refreshToken) {
-          const response = await axios.post(`${API_BASE_URL}/auth/refresh/`, {
-            refresh: refreshToken,
-          });
+        // Call refresh endpoint - refresh token is sent automatically via cookie
+        await axios.post(
+          `${API_BASE_URL}/auth/refresh/`,
+          {},
+          { withCredentials: true }
+        );
 
-          const { access } = response.data;
-          localStorage.setItem("access_token", access);
-
-          originalRequest.headers.Authorization = `Bearer ${access}`;
-          return api(originalRequest);
-        }
+        // Retry original request
+        return api(originalRequest);
       } catch (refreshError) {
-        // Refresh failed, clear tokens and redirect to login
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        window.location.reload();
+        // Refresh failed, just reject without redirecting
+        // The app will handle showing login UI
+        return Promise.reject(refreshError);
       }
     }
 
@@ -89,9 +89,8 @@ export const authApi = {
     return response.data;
   },
 
-  logout: () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+  logout: async () => {
+    await api.post("/auth/logout/");
   },
 };
 

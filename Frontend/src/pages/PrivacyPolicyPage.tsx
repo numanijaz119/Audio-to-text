@@ -316,8 +316,8 @@ export default function PrivacyPolicyPage() {
                 </p>
                 <ul className="text-slate-600 space-y-2">
                   <li>
-                    • <strong>Authentication Tokens:</strong> To keep you logged
-                    in securely
+                    • <strong>Authentication Cookies:</strong> Secure httpOnly
+                    cookies to keep you logged in
                   </li>
                   <li>
                     • <strong>Preferences:</strong> To remember your language

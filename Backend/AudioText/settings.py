@@ -140,7 +140,8 @@ AUTH_USER_MODEL = 'api.User'
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'api.utils.cookie_auth.CookieJWTAuthentication',  # Custom cookie-based JWT auth
+        'rest_framework_simplejwt.authentication.JWTAuthentication',  # Fallback to header auth
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -156,6 +157,11 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_COOKIE': 'access_token',  # Cookie name for access token
+    'AUTH_COOKIE_REFRESH': 'refresh_token',  # Cookie name for refresh token
+    'AUTH_COOKIE_SECURE': os.getenv('JWT_AUTH_SECURE', 'False') == 'True',
+    'AUTH_COOKIE_HTTP_ONLY': True,
+    'AUTH_COOKIE_SAMESITE': 'Lax',
 }
 
 # CORS Settings
@@ -163,6 +169,13 @@ CORS_ALLOWED_ORIGINS = [
     os.getenv('FRONTEND_URL', 'http://localhost:5173'),
 ]
 CORS_ALLOW_CREDENTIALS = True
+
+# Cookie Settings for JWT
+JWT_AUTH_COOKIE = 'access_token'
+JWT_AUTH_REFRESH_COOKIE = 'refresh_token'
+JWT_AUTH_SECURE = os.getenv('JWT_AUTH_SECURE', 'False') == 'True'  # Set to True in production with HTTPS
+JWT_AUTH_HTTPONLY = True
+JWT_AUTH_SAMESITE = 'Lax'  # 'Strict', 'Lax', or 'None' (None requires Secure=True)
 
 # Django Allauth
 AUTHENTICATION_BACKENDS = [

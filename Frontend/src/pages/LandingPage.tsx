@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
   Music,
@@ -13,8 +13,33 @@ import {
 import LoginModal from "../components/LoginModal";
 
 export default function LandingPage() {
-  const { isLoading } = useAuth();
+  const { isLoading, isAuthenticated } = useAuth();
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [shouldRedirect, setShouldRedirect] = useState(false);
+  const navigate = useNavigate();
+
+  // Watch for authentication changes and redirect if needed
+  useEffect(() => {
+    if (shouldRedirect && isAuthenticated && !isLoading) {
+      navigate("/dashboard");
+    }
+  }, [isAuthenticated, isLoading, shouldRedirect, navigate]);
+
+  const handleGetStarted = () => {
+    if (isAuthenticated) {
+      // If already logged in, go to dashboard
+      navigate("/dashboard");
+    } else {
+      // If not logged in, show login modal and set redirect flag
+      setShouldRedirect(true);
+      setShowLoginModal(true);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowLoginModal(false);
+    // Don't reset shouldRedirect - let it redirect after login
+  };
 
   const features = [
     {
@@ -76,11 +101,11 @@ export default function LandingPage() {
             </div>
 
             <button
-              onClick={() => setShowLoginModal(true)}
+              onClick={handleGetStarted}
               disabled={isLoading}
               className="btn btn-primary btn-sm"
             >
-              Sign In
+              {isAuthenticated ? "Go to Dashboard" : "Sign In"}
             </button>
           </div>
         </div>
@@ -113,11 +138,11 @@ export default function LandingPage() {
             {/* CTA */}
             <div className="flex flex-col items-center justify-center gap-4 animate-slide-up opacity-0 stagger-3">
               <button
-                onClick={() => setShowLoginModal(true)}
+                onClick={handleGetStarted}
                 disabled={isLoading}
                 className="btn btn-primary btn-lg group w-full sm:w-auto"
               >
-                Get Started Free
+                {isAuthenticated ? "Go to Dashboard" : "Get Started Free"}
                 <span className="group-hover:translate-x-1 transition-transform">
                   →
                 </span>
@@ -268,11 +293,11 @@ export default function LandingPage() {
               transcribed.
             </p>
             <button
-              onClick={() => setShowLoginModal(true)}
+              onClick={handleGetStarted}
               disabled={isLoading}
               className="btn btn-lg bg-white text-blue-600 hover:bg-blue-50 shadow-xl hover:shadow-2xl hover:-translate-y-1"
             >
-              Sign Up Free
+              {isAuthenticated ? "Go to Dashboard" : "Sign Up Free"}
             </button>
             <p className="text-sm text-blue-200 mt-4">
               No credit card required
@@ -318,10 +343,7 @@ export default function LandingPage() {
       </footer>
 
       {/* Login Modal */}
-      <LoginModal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-      />
+      <LoginModal isOpen={showLoginModal} onClose={handleCloseModal} />
     </div>
   );
 }

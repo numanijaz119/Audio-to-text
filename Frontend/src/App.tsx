@@ -44,15 +44,18 @@ function AppContent() {
     >
       <Router>
         <Routes>
-          {/* Public routes */}
+          {/* Public routes - accessible to everyone */}
+          <Route path="/" element={<LandingPage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
           <Route path="/contact" element={<ContactUsPage />} />
 
-          {/* Protected/Landing routes */}
+          {/* Protected route - only for authenticated users */}
           <Route
-            path="/"
-            element={isAuthenticated ? <TranscribePage /> : <LandingPage />}
+            path="/dashboard"
+            element={
+              isAuthenticated ? <TranscribePage /> : <Navigate to="/" replace />
+            }
           />
 
           {/* Redirect any unknown routes to home */}
